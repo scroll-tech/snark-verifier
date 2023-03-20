@@ -1,5 +1,6 @@
 use crate::halo2_proofs::poly::kzg::commitment::ParamsKZG;
 use crate::util::arithmetic::MultiMillerLoop;
+use halo2_proofs::ff::PrimeField;
 use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
 
 mod native;
@@ -16,7 +17,10 @@ pub const TESTDATA_DIR: &str = "./src/system/halo2/test/data";
 pub const LIMBS: usize = 3;
 pub const BITS: usize = 88;
 
-pub fn setup<M: MultiMillerLoop>(k: u32) -> ParamsKZG<M> {
+pub fn setup<M: MultiMillerLoop>(k: u32) -> ParamsKZG<M>
+where
+    M::Scalar: PrimeField,
+{
     ParamsKZG::<M>::setup(k, ChaCha20Rng::from_seed(Default::default()))
 }
 

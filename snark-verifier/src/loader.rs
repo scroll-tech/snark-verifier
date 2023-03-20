@@ -98,11 +98,11 @@ pub trait ScalarLoader<F: PrimeField> {
     fn load_const(&self, value: &F) -> Self::LoadedScalar;
 
     fn load_zero(&self) -> Self::LoadedScalar {
-        self.load_const(&F::zero())
+        self.load_const(&F::ZERO)
     }
 
     fn load_one(&self) -> Self::LoadedScalar {
-        self.load_const(&F::one())
+        self.load_const(&F::ONE)
     }
 
     fn assert_eq(
@@ -123,13 +123,13 @@ pub trait ScalarLoader<F: PrimeField> {
 
         let loader = values.first().unwrap().1.loader();
         iter::empty()
-            .chain(if constant == F::zero() {
+            .chain(if constant == F::ZERO {
                 None
             } else {
                 Some(Cow::Owned(loader.load_const(&constant)))
             })
             .chain(values.iter().map(|&(coeff, value)| {
-                if coeff == F::one() {
+                if coeff == F::ONE {
                     Cow::Borrowed(value)
                 } else {
                     Cow::Owned(loader.load_const(&coeff) * value)
@@ -151,13 +151,9 @@ pub trait ScalarLoader<F: PrimeField> {
 
         let loader = values.first().unwrap().1.loader();
         iter::empty()
-            .chain(if constant == F::zero() {
-                None
-            } else {
-                Some(loader.load_const(&constant))
-            })
+            .chain(if constant == F::ZERO { None } else { Some(loader.load_const(&constant)) })
             .chain(values.iter().map(|&(coeff, lhs, rhs)| {
-                if coeff == F::one() {
+                if coeff == F::ONE {
                     lhs.clone() * rhs
                 } else {
                     loader.load_const(&coeff) * lhs * rhs
@@ -168,25 +164,25 @@ pub trait ScalarLoader<F: PrimeField> {
     }
 
     fn sum_with_coeff(&self, values: &[(F, &Self::LoadedScalar)]) -> Self::LoadedScalar {
-        self.sum_with_coeff_and_const(values, F::zero())
+        self.sum_with_coeff_and_const(values, F::ZERO)
     }
 
     fn sum_with_const(&self, values: &[&Self::LoadedScalar], constant: F) -> Self::LoadedScalar {
         self.sum_with_coeff_and_const(
-            &values.iter().map(|&value| (F::one(), value)).collect_vec(),
+            &values.iter().map(|&value| (F::ONE, value)).collect_vec(),
             constant,
         )
     }
 
     fn sum(&self, values: &[&Self::LoadedScalar]) -> Self::LoadedScalar {
-        self.sum_with_const(values, F::zero())
+        self.sum_with_const(values, F::ZERO)
     }
 
     fn sum_products_with_coeff(
         &self,
         values: &[(F, &Self::LoadedScalar, &Self::LoadedScalar)],
     ) -> Self::LoadedScalar {
-        self.sum_products_with_coeff_and_const(values, F::zero())
+        self.sum_products_with_coeff_and_const(values, F::ZERO)
     }
 
     fn sum_products_with_const(
@@ -195,10 +191,7 @@ pub trait ScalarLoader<F: PrimeField> {
         constant: F,
     ) -> Self::LoadedScalar {
         self.sum_products_with_coeff_and_const(
-            &values
-                .iter()
-                .map(|&(lhs, rhs)| (F::one(), lhs, rhs))
-                .collect_vec(),
+            &values.iter().map(|&(lhs, rhs)| (F::ONE, lhs, rhs)).collect_vec(),
             constant,
         )
     }
@@ -207,13 +200,11 @@ pub trait ScalarLoader<F: PrimeField> {
         &self,
         values: &[(&Self::LoadedScalar, &Self::LoadedScalar)],
     ) -> Self::LoadedScalar {
-        self.sum_products_with_const(values, F::zero())
+        self.sum_products_with_const(values, F::ZERO)
     }
 
     fn product(&self, values: &[&Self::LoadedScalar]) -> Self::LoadedScalar {
-        values
-            .iter()
-            .fold(self.load_one(), |acc, value| acc * *value)
+        values.iter().fold(self.load_one(), |acc, value| acc * *value)
     }
 
     fn batch_invert<'a>(values: impl IntoIterator<Item = &'a mut Self::LoadedScalar>)

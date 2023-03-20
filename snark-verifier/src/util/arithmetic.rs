@@ -17,7 +17,7 @@ pub use halo2_curves::{
         Curve, Group, GroupEncoding,
     },
     pairing::MillerLoopResult,
-    Coordinates, CurveAffine, CurveExt, FieldExt,
+    Coordinates, CurveAffine,
 };
 
 pub trait MultiMillerLoop: halo2_curves::pairing::MultiMillerLoop + Debug {}
@@ -47,7 +47,7 @@ pub fn batch_invert_and_mul<F: PrimeField>(values: &mut [F], coeff: &F) {
     let products = values
         .iter()
         .filter(|value| !value.is_zero_vartime())
-        .scan(F::one(), |acc, value| {
+        .scan(F::ONE, |acc, value| {
             *acc *= value;
             Some(*acc)
         })
@@ -59,7 +59,7 @@ pub fn batch_invert_and_mul<F: PrimeField>(values: &mut [F], coeff: &F) {
         .iter_mut()
         .rev()
         .filter(|value| !value.is_zero_vartime())
-        .zip(products.into_iter().rev().skip(1).chain(Some(F::one())))
+        .zip(products.into_iter().rev().skip(1).chain(Some(F::ONE)))
     {
         let mut inv = all_product_inv * product;
         mem::swap(value, &mut inv);
@@ -68,13 +68,13 @@ pub fn batch_invert_and_mul<F: PrimeField>(values: &mut [F], coeff: &F) {
 }
 
 pub fn batch_invert<F: PrimeField>(values: &mut [F]) {
-    batch_invert_and_mul(values, &F::one())
+    batch_invert_and_mul(values, &F::ONE)
 }
 
 pub fn root_of_unity<F: PrimeField>(k: usize) -> F {
     assert!(k <= F::S as usize);
 
-    iter::successors(Some(F::root_of_unity()), |acc| Some(acc.square()))
+    iter::successors(Some(F::ROOT_OF_UNITY), |acc| Some(acc.square()))
         .take(F::S as usize - k + 1)
         .last()
         .unwrap()
@@ -190,7 +190,7 @@ pub fn ilog2(value: usize) -> usize {
 }
 
 pub fn modulus<F: PrimeField>() -> BigUint {
-    fe_to_big(-F::one()) + 1usize
+    fe_to_big(-F::ONE) + 1usize
 }
 
 pub fn fe_from_big<F: PrimeField>(big: BigUint) -> F {
@@ -238,7 +238,7 @@ pub fn fe_to_limbs<F1: PrimeField, F2: PrimeField, const LIMBS: usize, const BIT
 }
 
 pub fn powers<F: Field>(scalar: F) -> impl Iterator<Item = F> {
-    iter::successors(Some(F::one()), move |power| Some(scalar * power))
+    iter::successors(Some(F::ONE), move |power| Some(scalar * power))
 }
 
 pub fn inner_product<F: Field>(lhs: &[F], rhs: &[F]) -> F {

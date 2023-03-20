@@ -399,7 +399,7 @@ impl Circuit<Fr> for Accumulation {
         // TODO: use less instances by following Scroll's strategy of keeping only last bit of y coordinate
         let mut layouter = layouter.namespace(|| "expose");
         for (i, cell) in assigned_instances.unwrap().into_iter().enumerate() {
-            layouter.constrain_instance(cell, config.instance, i);
+            layouter.constrain_instance(cell, config.instance, i)?;
         }
         Ok(())
     }

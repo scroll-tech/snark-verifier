@@ -42,7 +42,6 @@ mod application {
         poly::Rotation,
     };
     use super::Fr;
-    use halo2_base::halo2_proofs::plonk::Assigned;
     use rand::RngCore;
 
     #[derive(Clone, Copy)]
@@ -166,7 +165,7 @@ mod application {
                             0,
                             Value::known(Assigned::Trivial(self.0)),
                         )?;
-                        region.assign_fixed(config.q_a, 0, Assigned::Trivial(-Fr::one()));
+                        region.assign_fixed(config.q_a, 0, Assigned::Trivial(-Fr::ONE));
 
                         region.assign_advice(
                             config.a,
@@ -186,7 +185,7 @@ mod application {
                         let a = region.assign_advice(
                             config.a,
                             2,
-                            Value::known(Assigned::Trivial(Fr::one())),
+                            Value::known(Assigned::Trivial(Fr::ONE)),
                         )?;
                         a.copy_advice(&mut region, config.b, 3);
                         a.copy_advice(&mut region, config.c, 4);
@@ -525,7 +524,7 @@ mod aggregation {
             // TODO: use less instances by following Scroll's strategy of keeping only last bit of y coordinate
             let mut layouter = layouter.namespace(|| "expose");
             for (i, cell) in assigned_instances.unwrap().into_iter().enumerate() {
-                layouter.constrain_instance(cell, config.instance, i);
+                layouter.constrain_instance(cell, config.instance, i)?;
             }
             Ok(())
         }

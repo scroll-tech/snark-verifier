@@ -71,7 +71,7 @@ pub fn modulus<F>() -> U256
 where
     F: PrimeField<Repr = [u8; 32]>,
 {
-    U256::from_little_endian((-F::one()).to_repr().as_ref()) + 1
+    U256::from_little_endian((-F::ONE).to_repr().as_ref()) + 1
 }
 
 pub fn encode_calldata<F>(instances: &[Vec<F>], proof: &[u8]) -> Vec<u8>
@@ -108,11 +108,7 @@ pub fn compile_yul(code: &str) -> Vec<u8> {
         .arg("-")
         .spawn()
         .unwrap();
-    cmd.stdin
-        .take()
-        .unwrap()
-        .write_all(code.as_bytes())
-        .unwrap();
+    cmd.stdin.take().unwrap().write_all(code.as_bytes()).unwrap();
     let output = cmd.wait_with_output().unwrap().stdout;
     let binary = *split_by_ascii_whitespace(&output).last().unwrap();
     hex::decode(binary).unwrap()

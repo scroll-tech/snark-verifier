@@ -129,7 +129,7 @@ impl<'a, C: CurveAffine, EccChip: EccInstructions<'a, C>> Halo2Loader<'a, C, Ecc
                 .scalar_chip()
                 .sum_with_coeff_and_const(
                     &mut self.ctx_mut(),
-                    &[(C::Scalar::one(), assigned)],
+                    &[(C::Scalar::ONE, assigned)],
                     *constant,
                 )
                 .map(Value::Assigned)
@@ -138,8 +138,8 @@ impl<'a, C: CurveAffine, EccChip: EccInstructions<'a, C>> Halo2Loader<'a, C, Ecc
                 .scalar_chip()
                 .sum_with_coeff_and_const(
                     &mut self.ctx_mut(),
-                    &[(C::Scalar::one(), lhs), (C::Scalar::one(), rhs)],
-                    C::Scalar::zero(),
+                    &[(C::Scalar::ONE, lhs), (C::Scalar::ONE, rhs)],
+                    C::Scalar::ZERO,
                 )
                 .map(Value::Assigned)
                 .unwrap(),
@@ -158,7 +158,7 @@ impl<'a, C: CurveAffine, EccChip: EccInstructions<'a, C>> Halo2Loader<'a, C, Ecc
                 .scalar_chip()
                 .sum_with_coeff_and_const(
                     &mut self.ctx_mut(),
-                    &[(-C::Scalar::one(), assigned)],
+                    &[(-C::Scalar::ONE, assigned)],
                     *constant,
                 )
                 .map(Value::Assigned)
@@ -167,7 +167,7 @@ impl<'a, C: CurveAffine, EccChip: EccInstructions<'a, C>> Halo2Loader<'a, C, Ecc
                 .scalar_chip()
                 .sum_with_coeff_and_const(
                     &mut self.ctx_mut(),
-                    &[(C::Scalar::one(), assigned)],
+                    &[(C::Scalar::ONE, assigned)],
                     -*constant,
                 )
                 .map(Value::Assigned)
@@ -194,7 +194,7 @@ impl<'a, C: CurveAffine, EccChip: EccInstructions<'a, C>> Halo2Loader<'a, C, Ecc
                 .sum_with_coeff_and_const(
                     &mut self.ctx_mut(),
                     &[(*constant, assigned)],
-                    C::Scalar::zero(),
+                    C::Scalar::ZERO,
                 )
                 .map(Value::Assigned)
                 .unwrap(),
@@ -202,8 +202,8 @@ impl<'a, C: CurveAffine, EccChip: EccInstructions<'a, C>> Halo2Loader<'a, C, Ecc
                 .scalar_chip()
                 .sum_products_with_coeff_and_const(
                     &mut self.ctx_mut(),
-                    &[(C::Scalar::one(), lhs, rhs)],
-                    C::Scalar::zero(),
+                    &[(C::Scalar::ONE, lhs, rhs)],
+                    C::Scalar::ZERO,
                 )
                 .map(Value::Assigned)
                 .unwrap(),
@@ -609,7 +609,7 @@ impl<'a, C: CurveAffine, EccChip: EccInstructions<'a, C>> EcPointLoader<C>
                             fixed_base.push((scalar, *base))
                         }
                         (Value::Constant(scalar), Value::Assigned(_))
-                            if scalar.eq(&C::Scalar::one()) =>
+                            if scalar.eq(&C::Scalar::ONE) =>
                         {
                             variable_base_non_scaled.push(base);
                         }

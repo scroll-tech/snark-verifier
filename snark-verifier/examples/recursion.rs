@@ -10,7 +10,6 @@ use halo2_proofs::{
     halo2curves::{
         bn256::{Bn256, Fq, Fr, G1Affine},
         group::ff::Field,
-        FieldExt,
     },
     plonk::{
         self, create_proof, keygen_pk, keygen_vk, Circuit, ConstraintSystem, Error, ProvingKey,
@@ -370,8 +369,8 @@ mod recursion {
         svk: &Svk,
         loader: &Rc<Halo2Loader<'a>>,
         snark: &SnarkWitness,
-        preprocessed_digest: Option<AssignedValue<'a, Fr>>,
-    ) -> (Vec<Vec<AssignedValue<'a, Fr>>>, Vec<KzgAccumulator<G1Affine, Rc<Halo2Loader<'a>>>>) {
+        preprocessed_digest: Option<AssignedValue< Fr>>,
+    ) -> (Vec<Vec<AssignedValue< Fr>>>, Vec<KzgAccumulator<G1Affine, Rc<Halo2Loader<'a>>>>) {
         let protocol = if let Some(preprocessed_digest) = preprocessed_digest {
             let preprocessed_digest = loader.scalar_from_assigned(preprocessed_digest);
             let protocol = snark.protocol.loaded_preprocessed_as_witness(loader);
@@ -415,7 +414,7 @@ mod recursion {
 
     fn select_accumulator<'a>(
         loader: &Rc<Halo2Loader<'a>>,
-        condition: &AssignedValue<'a, Fr>,
+        condition: &AssignedValue< Fr>,
         lhs: &KzgAccumulator<G1Affine, Rc<Halo2Loader<'a>>>,
         rhs: &KzgAccumulator<G1Affine, Rc<Halo2Loader<'a>>>,
     ) -> Result<KzgAccumulator<G1Affine, Rc<Halo2Loader<'a>>>, Error> {
@@ -587,7 +586,7 @@ mod recursion {
             snark.instances = vec![[g[1].x, g[1].y, g[0].x, g[0].y]
                 .into_iter()
                 .flat_map(fe_to_limbs::<_, _, LIMBS, BITS>)
-                .chain([Fr::zero(); 4])
+                .chain([Fr::ZERO; 4])
                 .collect_vec()];
             snark
         }
@@ -764,7 +763,7 @@ mod recursion {
                             ),
                         ),
                     ] {
-                        ctx.region.constrain_equal(lhs.cell(), rhs.cell());
+                        ctx.region.constrain_equal(lhs.cell(), rhs.cell())?;
                     }
 
                     // IMPORTANT:
@@ -787,7 +786,7 @@ mod recursion {
 
             assert_eq!(assigned_instances.len(), 4 * LIMBS + 4);
             for (row, limb) in assigned_instances.into_iter().enumerate() {
-                layouter.constrain_instance(limb, config.instance, row);
+                layouter.constrain_instance(limb, config.instance, row)?;
             }
 
             Ok(())
@@ -825,8 +824,8 @@ mod recursion {
             recursion_params,
             gen_dummy_snark::<ConcreteCircuit>(app_params, Some(app_vk)),
             RecursionCircuit::initial_snark(recursion_params, None),
-            Fr::zero(),
-            Fr::zero(),
+            Fr::ZERO,
+            Fr::ZERO,
             0,
         );
         gen_pk(recursion_params, &recursion)

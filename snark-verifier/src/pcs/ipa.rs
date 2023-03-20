@@ -382,7 +382,7 @@ pub fn h_eval<F: PrimeField, T: LoadedScalar<F>>(xi: &[T], z: &T) -> T {
 pub fn h_coeffs<F: Field>(xi: &[F], scalar: F) -> Vec<F> {
     assert!(!xi.is_empty());
 
-    let mut coeffs = vec![F::zero(); 1 << xi.len()];
+    let mut coeffs = vec![F::ZERO; 1 << xi.len()];
     coeffs[0] = scalar;
 
     for (len, xi) in xi.iter().rev().enumerate().map(|(i, xi)| (1 << i, xi)) {

@@ -5,7 +5,7 @@ use halo2_proofs::{
     dev::MockProver,
     halo2curves::bn256::{Bn256, Fq, Fr, G1Affine},
     plonk::{
-        create_proof, keygen_pk, keygen_vk, verify_proof, Advice, Assigned, Circuit, Column,
+        create_proof, keygen_pk, keygen_vk, verify_proof, Advice,  Circuit, Column,
         ConstraintSystem, Error, Fixed, Instance, ProvingKey, VerifyingKey,
     },
     poly::{
@@ -141,7 +141,7 @@ impl Circuit<Fr> for StandardPlonk {
                 #[cfg(feature = "halo2-axiom")]
                 {
                     region.assign_advice(config.a, 0, Value::known(Assigned::Trivial(self.0)))?;
-                    region.assign_fixed(config.q_a, 0, Assigned::Trivial(-Fr::one()));
+                    region.assign_fixed(config.q_a, 0, Assigned::Trivial(-Fr::ONE));
 
                     region.assign_advice(
                         config.a,
@@ -161,7 +161,7 @@ impl Circuit<Fr> for StandardPlonk {
                     let a = region.assign_advice(
                         config.a,
                         2,
-                        Value::known(Assigned::Trivial(Fr::one())),
+                        Value::known(Assigned::Trivial(Fr::ONE)),
                     )?;
                     a.copy_advice(&mut region, config.b, 3);
                     a.copy_advice(&mut region, config.c, 4);

@@ -20,6 +20,7 @@ impl<M, L> MultiOpenScheme<M::G1Affine, L> for Kzg<M, Gwc19>
 where
     M: MultiMillerLoop,
     L: Loader<M::G1Affine>,
+    M::Scalar: PrimeField,
 {
     type SuccinctVerifyingKey = KzgSuccinctVerifyingKey<M::G1Affine>;
     type Proof = Gwc19Proof<M::G1Affine, L>;
@@ -149,6 +150,7 @@ where
 impl<M> CostEstimation<M::G1Affine> for Kzg<M, Gwc19>
 where
     M: MultiMillerLoop,
+    M::Scalar: PrimeField,
 {
     type Input = Vec<Query<M::Scalar>>;
 

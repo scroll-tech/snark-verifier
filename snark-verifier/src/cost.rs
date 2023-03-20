@@ -15,12 +15,7 @@ impl Cost {
         num_evaluation: usize,
         num_msm: usize,
     ) -> Self {
-        Self {
-            num_instance,
-            num_commitment,
-            num_evaluation,
-            num_msm,
-        }
+        Self { num_instance, num_commitment, num_evaluation, num_msm }
     }
 }
 
