@@ -242,7 +242,7 @@ mod halo2 {
                     .iter()
                     .zip_eq(iter::empty().chain(ec_point.x().limbs()).chain(ec_point.y().limbs()))
                 {
-                    ctx.region.constrain_equal(src.cell(), dst.cell());
+                    ctx.region.constrain_equal(src.cell(), dst.cell())?;
                 }
 
                 Ok(ec_point)

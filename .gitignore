@@ -5,3 +5,4 @@
 testdata
 
 Cargo.lock
+*.srs

@@ -50,9 +50,9 @@ pub fn load_verify_circuit_degree() -> u32 {
     params.degree
 }
 
-pub fn flatten_accumulator<'b, 'a: 'b>(
+pub fn flatten_accumulator<'a>(
     accumulator: KzgAccumulator<G1Affine, Rc<Halo2Loader<'a>>>,
-) -> Vec<AssignedValue<'b, Fr>> {
+) -> Vec<AssignedValue<Fr>> {
     let KzgAccumulator { lhs, rhs } = accumulator;
     let lhs = lhs.into_assigned();
     let rhs = rhs.into_assigned();
@@ -372,7 +372,7 @@ impl Circuit<Fr> for AggregationCircuit {
 
         // Expose instances
         for (i, cell) in instances.into_iter().enumerate() {
-            layouter.constrain_instance(cell, config.instance, i);
+            layouter.constrain_instance(cell, config.instance, i)?;
         }
         #[cfg(feature = "display")]
         end_timer!(witness_time);
@@ -510,7 +510,7 @@ impl Circuit<Fr> for PublicAggregationCircuit {
             .unwrap();
         // Expose instances
         for (i, cell) in instances.into_iter().enumerate() {
-            layouter.constrain_instance(cell, config.instance, i);
+            layouter.constrain_instance(cell, config.instance, i)?;
         }
         #[cfg(feature = "display")]
         end_timer!(witness_time);

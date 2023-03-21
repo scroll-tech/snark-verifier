@@ -1,12 +1,13 @@
 use crate::{
     cost::{Cost, CostEstimation},
+    halo2_proofs::ff::PrimeField,
     loader::{LoadedScalar, Loader, ScalarLoader},
     pcs::{
         kzg::{Kzg, KzgAccumulator, KzgSuccinctVerifyingKey},
         MultiOpenScheme, Query,
     },
     util::{
-        arithmetic::{ilog2, CurveAffine, FieldExt, Fraction, MultiMillerLoop},
+        arithmetic::{ilog2, CurveAffine, Fraction, MultiMillerLoop},
         msm::Msm,
         transcript::TranscriptRead,
         Itertools,
@@ -22,6 +23,7 @@ pub struct Bdfg21;
 
 impl<M, L> MultiOpenScheme<M::G1Affine, L> for Kzg<M, Bdfg21>
 where
+    M::Scalar: PrimeField + Ord,
     M: MultiMillerLoop,
     L: Loader<M::G1Affine>,
 {
@@ -98,7 +100,7 @@ where
     }
 }
 
-fn query_sets<F: FieldExt, T: Clone>(queries: &[Query<F, T>]) -> Vec<QuerySet<F, T>> {
+fn query_sets<F: PrimeField + Ord, T: Clone>(queries: &[Query<F, T>]) -> Vec<QuerySet<F, T>> {
     let poly_shifts =
         queries.iter().fold(Vec::<(usize, Vec<F>, Vec<&T>)>::new(), |mut poly_shifts, query| {
             if let Some(pos) = poly_shifts.iter().position(|(poly, _, _)| *poly == query.poly) {
@@ -138,7 +140,7 @@ fn query_sets<F: FieldExt, T: Clone>(queries: &[Query<F, T>]) -> Vec<QuerySet<F,
     })
 }
 
-fn query_set_coeffs<'a, F: FieldExt, T: LoadedScalar<F>>(
+fn query_set_coeffs<'a, F: PrimeField + Ord, T: LoadedScalar<F>>(
     sets: &[QuerySet<'a, F, T>],
     z: &T,
     z_prime: &T,
@@ -187,7 +189,7 @@ struct QuerySet<'a, F, T> {
     evals: Vec<Vec<&'a T>>,
 }
 
-impl<'a, F: FieldExt, T: LoadedScalar<F>> QuerySet<'a, F, T> {
+impl<'a, F: PrimeField, T: LoadedScalar<F>> QuerySet<'a, F, T> {
     fn msm<C: CurveAffine, L: Loader<C, LoadedScalar = T>>(
         &self,
         coeff: &QuerySetCoeff<F, T>,
@@ -232,7 +234,7 @@ struct QuerySetCoeff<F, T> {
 
 impl<F, T> QuerySetCoeff<F, T>
 where
-    F: FieldExt,
+    F: PrimeField + Ord,
     T: LoadedScalar<F>,
 {
     fn new(
@@ -254,7 +256,7 @@ where
                     .filter(|&(i, _)| i != j)
                     .map(|(_, shift_i)| (*shift_j - shift_i))
                     .reduce(|acc, value| acc * value)
-                    .unwrap_or_else(|| F::one())
+                    .unwrap_or_else(|| F::ONE)
             })
             .collect_vec();
 
@@ -331,6 +333,7 @@ where
 impl<M> CostEstimation<M::G1Affine> for Kzg<M, Bdfg21>
 where
     M: MultiMillerLoop,
+    M::Scalar: PrimeField,
 {
     type Input = Vec<Query<M::Scalar>>;
 

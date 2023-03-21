@@ -43,12 +43,7 @@ impl Tui {
         let backend = CrosstermBackend::new(stdout);
         let mut terminal = Terminal::new(backend).unwrap();
         terminal.hide_cursor().unwrap();
-        Tui {
-            debug_arena,
-            terminal,
-            key_buffer: String::new(),
-            current_step,
-        }
+        Tui { debug_arena, terminal, key_buffer: String::new(), current_step }
     }
 
     pub fn start(mut self) {
@@ -89,11 +84,8 @@ impl Tui {
         let mut draw_memory: DrawMemory = DrawMemory::default();
 
         let debug_call = &self.debug_arena;
-        let mut opcode_list: Vec<String> = debug_call[0]
-            .1
-            .iter()
-            .map(|step| step.pretty_opcode())
-            .collect();
+        let mut opcode_list: Vec<String> =
+            debug_call[0].1.iter().map(|step| step.pretty_opcode()).collect();
         let mut last_index = 0;
 
         let mut stack_labels = false;
@@ -383,12 +375,8 @@ impl Tui {
             if let [op_pane, stack_pane, memory_pane] = Layout::default()
                 .direction(Direction::Vertical)
                 .constraints(
-                    [
-                        Constraint::Ratio(1, 3),
-                        Constraint::Ratio(1, 3),
-                        Constraint::Ratio(1, 3),
-                    ]
-                    .as_ref(),
+                    [Constraint::Ratio(1, 3), Constraint::Ratio(1, 3), Constraint::Ratio(1, 3)]
+                        .as_ref(),
                 )
                 .split(app)[..]
             {
@@ -410,14 +398,7 @@ impl Tui {
                     stack_labels,
                     draw_memory,
                 );
-                Tui::draw_memory(
-                    f,
-                    debug_steps,
-                    current_step,
-                    memory_pane,
-                    mem_utf,
-                    draw_memory,
-                );
+                Tui::draw_memory(f, debug_steps, current_step, memory_pane, mem_utf, draw_memory);
             } else {
                 panic!("unable to create vertical panes")
             }
@@ -534,15 +515,11 @@ impl Tui {
         let prev_start = draw_memory.current_startline;
         let abs_min_start = 0;
         let abs_max_start = (opcode_list.len() as i32 - 1) - (height / 2);
-        let mut min_start = max(
-            current_step as i32 - height + extra_top_lines,
-            abs_min_start,
-        ) as usize;
+        let mut min_start =
+            max(current_step as i32 - height + extra_top_lines, abs_min_start) as usize;
 
-        let mut max_start = max(
-            min(current_step as i32 - extra_top_lines, abs_max_start),
-            abs_min_start,
-        ) as usize;
+        let mut max_start =
+            max(min(current_step as i32 - extra_top_lines, abs_max_start), abs_min_start) as usize;
 
         if min_start > max_start {
             std::mem::swap(&mut min_start, &mut max_start);
@@ -557,18 +534,11 @@ impl Tui {
         }
         draw_memory.current_startline = display_start;
 
-        let max_pc_len = debug_steps
-            .iter()
-            .fold(0, |max_val, val| val.pc.max(max_val))
-            .to_string()
-            .len();
+        let max_pc_len =
+            debug_steps.iter().fold(0, |max_val, val| val.pc.max(max_val)).to_string().len();
 
         let mut add_new_line = |line_number| {
-            let bg_color = if line_number == current_step {
-                Color::DarkGray
-            } else {
-                Color::Reset
-            };
+            let bg_color = if line_number == current_step { Color::DarkGray } else { Color::Reset };
 
             let line_number_format = if line_number == current_step {
                 let step: &DebugStep = &debug_steps[line_number];
@@ -596,9 +566,8 @@ impl Tui {
             add_new_line(number);
         }
         add_new_line(opcode_list.len());
-        let paragraph = Paragraph::new(text_output)
-            .block(block_source_code)
-            .wrap(Wrap { trim: true });
+        let paragraph =
+            Paragraph::new(text_output).block(block_source_code).wrap(Wrap { trim: true });
         f.render_widget(paragraph, area);
     }
 
@@ -611,9 +580,8 @@ impl Tui {
         draw_memory: &mut DrawMemory,
     ) {
         let stack = &debug_steps[current_step].stack;
-        let stack_space = Block::default()
-            .title(format!("Stack: {}", stack.len()))
-            .borders(Borders::ALL);
+        let stack_space =
+            Block::default().title(format!("Stack: {}", stack.len())).borders(Borders::ALL);
         let min_len = usize::max(format!("{}", stack.len()).len(), 2);
 
         let indices_affected = stack_indices_affected(debug_steps[current_step].instruction.0);
@@ -624,9 +592,8 @@ impl Tui {
             .enumerate()
             .skip(draw_memory.current_stack_startline)
             .map(|(i, stack_item)| {
-                let affected = indices_affected
-                    .iter()
-                    .find(|(affected_index, _name)| *affected_index == i);
+                let affected =
+                    indices_affected.iter().find(|(affected_index, _name)| *affected_index == i);
 
                 let mut words: Vec<Span> = (0..32)
                     .into_iter()
@@ -665,9 +632,7 @@ impl Tui {
             })
             .collect();
 
-        let paragraph = Paragraph::new(text)
-            .block(stack_space)
-            .wrap(Wrap { trim: true });
+        let paragraph = Paragraph::new(text).block(stack_space).wrap(Wrap { trim: true });
         f.render_widget(paragraph, area);
     }
 
@@ -681,10 +646,7 @@ impl Tui {
     ) {
         let memory = &debug_steps[current_step].memory;
         let stack_space = Block::default()
-            .title(format!(
-                "Memory (max expansion: {} bytes)",
-                memory.effective_len()
-            ))
+            .title(format!("Memory (max expansion: {} bytes)", memory.effective_len()))
             .borders(Borders::ALL);
         let memory = memory.data();
         let max_i = memory.len() / 32;
@@ -771,9 +733,7 @@ impl Tui {
                 Spans::from(spans)
             })
             .collect();
-        let paragraph = Paragraph::new(text)
-            .block(stack_space)
-            .wrap(Wrap { trim: true });
+        let paragraph = Paragraph::new(text).block(stack_space).wrap(Wrap { trim: true });
         f.render_widget(paragraph, area);
     }
 }
@@ -882,13 +842,7 @@ fn stack_indices_affected(op: u8) -> Vec<(usize, &'static str)> {
         0xa0 => vec![(0, "offset"), (1, "length")],
         0xa1 => vec![(0, "offset"), (1, "length"), (2, "topic")],
         0xa2 => vec![(0, "offset"), (1, "length"), (2, "topic1"), (3, "topic2")],
-        0xa3 => vec![
-            (0, "offset"),
-            (1, "length"),
-            (2, "topic1"),
-            (3, "topic2"),
-            (4, "topic3"),
-        ],
+        0xa3 => vec![(0, "offset"), (1, "length"), (2, "topic1"), (3, "topic2"), (4, "topic3")],
         0xa4 => vec![
             (0, "offset"),
             (1, "length"),

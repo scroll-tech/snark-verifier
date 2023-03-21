@@ -1,8 +1,9 @@
+use crate::halo2_proofs::ff::PrimeField;
 use crate::halo2_proofs::{
     circuit::{Cell, Value},
     plonk::Error,
 };
-use crate::util::arithmetic::{CurveAffine, FieldExt};
+use crate::util::arithmetic::CurveAffine;
 use std::{fmt::Debug, ops::Deref};
 
 pub trait Context: Debug {
@@ -11,7 +12,7 @@ pub trait Context: Debug {
     fn offset(&self) -> usize;
 }
 
-pub trait IntegerInstructions<'a, F: FieldExt>: Clone + Debug {
+pub trait IntegerInstructions<'a, F: PrimeField>: Clone + Debug {
     type Context: Context;
     type AssignedCell: Clone + Debug;
     type AssignedInteger: Clone + Debug;
@@ -31,19 +32,19 @@ pub trait IntegerInstructions<'a, F: FieldExt>: Clone + Debug {
     fn sum_with_coeff_and_const(
         &self,
         ctx: &mut Self::Context,
-        values: &[(F::Scalar, impl Deref<Target = Self::AssignedInteger>)],
-        constant: F::Scalar,
+        values: &[(F, impl Deref<Target = Self::AssignedInteger>)],
+        constant: F,
     ) -> Result<Self::AssignedInteger, Error>;
 
     fn sum_products_with_coeff_and_const(
         &self,
         ctx: &mut Self::Context,
         values: &[(
-            F::Scalar,
+            F,
             impl Deref<Target = Self::AssignedInteger>,
             impl Deref<Target = Self::AssignedInteger>,
         )],
-        constant: F::Scalar,
+        constant: F,
     ) -> Result<Self::AssignedInteger, Error>;
 
     fn sub(
@@ -154,15 +155,15 @@ mod halo2_lib {
     };
     use std::ops::Deref;
 
-    type AssignedInteger<'v, C> = CRTInteger<'v, <C as CurveAffine>::ScalarExt>;
-    type AssignedEcPoint<'v, C> = EcPoint<<C as CurveAffine>::ScalarExt, AssignedInteger<'v, C>>;
+    type AssignedInteger<C> = CRTInteger<<C as CurveAffine>::ScalarExt>;
+    type AssignedEcPoint<C> = EcPoint<<C as CurveAffine>::ScalarExt, AssignedInteger<C>>;
 
     impl<'a, F: PrimeField> Context for halo2_base::Context<'a, F> {
         fn constrain_equal(&mut self, lhs: Cell, rhs: Cell) -> Result<(), Error> {
             #[cfg(feature = "halo2-axiom")]
             self.region.constrain_equal(&lhs, &rhs);
             #[cfg(feature = "halo2-pse")]
-            self.region.constrain_equal(lhs, rhs);
+            self.region.constrain_equal(lhs, rhs)?;
             Ok(())
         }
 
@@ -173,8 +174,8 @@ mod halo2_lib {
 
     impl<'a, F: PrimeField> IntegerInstructions<'a, F> for FlexGateConfig<F> {
         type Context = halo2_base::Context<'a, F>;
-        type AssignedCell = AssignedValue<'a, F>;
-        type AssignedInteger = AssignedValue<'a, F>;
+        type AssignedCell = AssignedValue<F>;
+        type AssignedInteger = AssignedValue<F>;
 
         fn assign_integer(
             &self,
@@ -195,14 +196,14 @@ mod halo2_lib {
         fn sum_with_coeff_and_const(
             &self,
             ctx: &mut Self::Context,
-            values: &[(F::Scalar, impl Deref<Target = Self::AssignedInteger>)],
+            values: &[(F, impl Deref<Target = Self::AssignedInteger>)],
             constant: F,
         ) -> Result<Self::AssignedInteger, Error> {
             let mut a = Vec::with_capacity(values.len() + 1);
             let mut b = Vec::with_capacity(values.len() + 1);
-            if constant != F::zero() {
+            if constant != F::ZERO {
                 a.push(Constant(constant));
-                b.push(Constant(F::one()));
+                b.push(Constant(F::ONE));
             }
             a.extend(values.iter().map(|(_, a)| Existing(a)));
             b.extend(values.iter().map(|(c, _)| Constant(*c)));
@@ -213,7 +214,7 @@ mod halo2_lib {
             &self,
             ctx: &mut Self::Context,
             values: &[(
-                F::Scalar,
+                F,
                 impl Deref<Target = Self::AssignedInteger>,
                 impl Deref<Target = Self::AssignedInteger>,
             )],
@@ -253,8 +254,8 @@ mod halo2_lib {
         ) -> Result<Self::AssignedInteger, Error> {
             // make sure scalar != 0
             let is_zero = self.is_zero(ctx, a);
-            self.assert_is_const(ctx, &is_zero, F::zero());
-            Ok(GateInstructions::div_unsafe(self, ctx, Constant(F::one()), Existing(a)))
+            self.assert_is_const(ctx, &is_zero, F::ZERO);
+            Ok(GateInstructions::div_unsafe(self, ctx, Constant(F::ONE), Existing(a)))
         }
 
         fn assert_equal(
@@ -263,7 +264,7 @@ mod halo2_lib {
             a: &Self::AssignedInteger,
             b: &Self::AssignedInteger,
         ) -> Result<(), Error> {
-            ctx.region.constrain_equal(a.cell(), b.cell());
+            ctx.region.constrain_equal(a.cell(), b.cell())?;
             Ok(())
         }
     }
@@ -275,9 +276,9 @@ mod halo2_lib {
     {
         type Context = halo2_base::Context<'a, C::Scalar>;
         type ScalarChip = FlexGateConfig<C::Scalar>;
-        type AssignedCell = AssignedValue<'a, C::Scalar>;
-        type AssignedScalar = AssignedValue<'a, C::Scalar>;
-        type AssignedEcPoint = AssignedEcPoint<'a, C>;
+        type AssignedCell = AssignedValue<C::Scalar>;
+        type AssignedScalar = AssignedValue<C::Scalar>;
+        type AssignedEcPoint = AssignedEcPoint<C>;
 
         fn scalar_chip(&self) -> &Self::ScalarChip {
             self.field_chip.range().gate()
@@ -308,7 +309,7 @@ mod halo2_lib {
         ) -> Result<Self::AssignedEcPoint, Error> {
             let assigned = self.assign_point(ctx, point);
             let is_valid = self.is_on_curve_or_infinity::<C>(ctx, &assigned);
-            self.field_chip.range.gate.assert_is_const(ctx, &is_valid, C::Scalar::one());
+            self.field_chip.range.gate.assert_is_const(ctx, &is_valid, C::Scalar::ONE);
             Ok(assigned)
         }
 
@@ -394,7 +395,7 @@ mod halo2_wrong {
     use crate::{
         loader::halo2::{Context, EccInstructions, IntegerInstructions},
         util::{
-            arithmetic::{CurveAffine, FieldExt, Group},
+            arithmetic::{CurveAffine, PrimeField, Group},
             Itertools,
         },
     };
@@ -413,7 +414,7 @@ mod halo2_wrong {
     use rand::rngs::OsRng;
     use std::{iter, ops::Deref};
 
-    impl<'a, F: FieldExt> Context for RegionCtx<'a, F> {
+    impl<'a, F: PrimeField> Context for RegionCtx<'a, F> {
         fn constrain_equal(&mut self, lhs: Cell, rhs: Cell) -> Result<(), Error> {
             self.constrain_equal(lhs, rhs)
         }
@@ -423,7 +424,7 @@ mod halo2_wrong {
         }
     }
 
-    impl<'a, F: FieldExt> IntegerInstructions<'a, F> for MainGate<F> {
+    impl<'a, F: PrimeField> IntegerInstructions<'a, F> for MainGate<F> {
         type Context = RegionCtx<'a, F>;
         type AssignedCell = AssignedCell<F, F>;
         type AssignedInteger = AssignedCell<F, F>;
@@ -500,7 +501,7 @@ mod halo2_wrong {
                         ctx,
                         [Term::assigned_to_mul(lhs), Term::assigned_to_mul(rhs)],
                         constant,
-                        CombinationOptionCommon::CombineToNextScaleMul(-F::one(), *scalar).into(),
+                        CombinationOptionCommon::CombineToNextScaleMul(-F::ONE, *scalar).into(),
                     )?;
                     let acc =
                         Value::known(*scalar) * lhs.value() * rhs.value() + Value::known(constant);
@@ -515,11 +516,11 @@ mod halo2_wrong {
                                         Term::assigned_to_mul(rhs),
                                         Term::Zero,
                                         Term::Zero,
-                                        Term::Unassigned(acc, F::one()),
+                                        Term::Unassigned(acc, F::ONE),
                                     ],
-                                    F::zero(),
+                                    F::ZERO,
                                     CombinationOptionCommon::CombineToNextScaleMul(
-                                        -F::one(),
+                                        -F::ONE,
                                         *scalar,
                                     )
                                     .into(),
@@ -535,9 +536,9 @@ mod halo2_wrong {
                             Term::Zero,
                             Term::Zero,
                             Term::Zero,
-                            Term::Unassigned(output, F::zero()),
+                            Term::Unassigned(output, F::ZERO),
                         ],
-                        F::zero(),
+                        F::ZERO,
                         CombinationOptionCommon::OneLinerAdd.into(),
                     )
                     .map(|mut outputs| outputs.swap_remove(4))
@@ -559,7 +560,7 @@ mod halo2_wrong {
             ctx: &mut Self::Context,
             value: &Self::AssignedInteger,
         ) -> Result<Self::AssignedInteger, Error> {
-            MainGateInstructions::neg_with_constant(self, ctx, value, F::zero())
+            MainGateInstructions::neg_with_constant(self, ctx, value, F::ZERO)
         }
 
         fn invert(
