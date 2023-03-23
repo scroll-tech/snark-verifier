@@ -17,7 +17,8 @@ serde_json = "1.0"
 serde_with = { version = "2.2", optional = true }
 bincode = "1.3.3"
 ark-std = { version = "0.3.0", features = ["print-trace"], optional = true }
-halo2-base = { git = "https://github.com/axiom-crypto/halo2-lib.git", branch = "axiom-dev-0301", default-features = false }
+
+halo2-base = { git = "https://github.com/scroll-tech/halo2-lib.git", branch = "halo2-ecc-snark-verifier-0323" }
 snark-verifier = { path = "../snark-verifier", default-features = false }
 
 # loader_evm
@@ -28,10 +29,10 @@ ethereum-types = { version = "0.14", default-features = false, features = ["std"
 # rlp = { version = "0.5", default-features = false, features = ["std"], optional = true }
 
 # zkevm benchmarks
-zkevm-circuits = { git = "https://github.com/privacy-scaling-explorations/zkevm-circuits.git", rev = "f834e61", features = ["test"], optional = true }
-bus-mapping = { git = "https://github.com/privacy-scaling-explorations/zkevm-circuits.git", rev = "f834e61", optional = true }
-eth-types = { git = "https://github.com/privacy-scaling-explorations/zkevm-circuits.git", rev = "f834e61", optional = true }
-mock = { git = "https://github.com/privacy-scaling-explorations/zkevm-circuits.git", rev = "f834e61", optional = true }
+zkevm-circuits = { git = "https://github.com/scroll-tech/zkevm-circuits.git", branch = "halo2-ecc-snark-verifier-0323", features = ["test"] }
+bus-mapping = { git = "https://github.com/scroll-tech/zkevm-circuits.git", branch = "halo2-ecc-snark-verifier-0323", optional = true }
+eth-types = { git = "https://github.com/scroll-tech/zkevm-circuits.git", branch = "halo2-ecc-snark-verifier-0323" }
+mock = { git = "https://github.com/scroll-tech/zkevm-circuits.git", branch = "halo2-ecc-snark-verifier-0323", optional = true }
 
 [dev-dependencies]
 ark-std = { version = "0.3.0", features = ["print-trace"] }
@@ -44,7 +45,7 @@ crossterm = { version = "0.25" }
 tui = { version = "0.19", default-features = false, features = ["crossterm"] }
 
 [features]
-default = ["loader_halo2", "loader_evm", "halo2-axiom", "halo2-base/jemallocator", "display"]
+default = ["loader_halo2", "loader_evm", "halo2-pse", "halo2-base/jemallocator" ]
 display = ["snark-verifier/display", "dep:ark-std"]
 loader_evm = ["snark-verifier/loader_evm", "dep:ethereum-types"]
 loader_halo2 = ["snark-verifier/loader_halo2"]
@@ -53,7 +54,7 @@ parallel = ["snark-verifier/parallel"]
 halo2-pse = ["snark-verifier/halo2-pse", "dep:serde_with"]
 halo2-axiom = ["snark-verifier/halo2-axiom"]
 
-zkevm = ["dep:zkevm-circuits", "dep:bus-mapping", "dep:mock", "dep:eth-types"]
+zkevm = [ "dep:bus-mapping", "dep:mock" ]
 
 [[bench]]
 name = "standard_plonk"

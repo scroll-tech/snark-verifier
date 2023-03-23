@@ -8,7 +8,6 @@ use halo2_proofs::{
         commitment::ParamsProver,
         kzg::{
             commitment::{KZGCommitmentScheme, ParamsKZG},
-            multiopen::{ProverGWC, VerifierGWC},
             strategy::AccumulatorStrategy,
         },
         VerificationStrategy,
@@ -42,7 +41,6 @@ mod application {
         poly::Rotation,
     };
     use super::Fr;
-    use halo2_base::halo2_proofs::plonk::Assigned;
     use rand::RngCore;
 
     #[derive(Clone, Copy)]
@@ -549,7 +547,7 @@ fn gen_proof<
     let instances = instances.iter().map(|instances| instances.as_slice()).collect_vec();
     let proof = {
         let mut transcript = TW::init(Vec::new());
-        create_proof::<KZGCommitmentScheme<Bn256>, ProverGWC<_>, _, _, TW, _>(
+        create_proof::<KZGCommitmentScheme<Bn256>, ProverSHPLONK<_>, _, _, TW, _>(
             params,
             pk,
             &[circuit],
@@ -563,8 +561,8 @@ fn gen_proof<
 
     let accept = {
         let mut transcript = TR::init(Cursor::new(proof.clone()));
-        VerificationStrategy::<_, VerifierGWC<_>>::finalize(
-            verify_proof::<_, VerifierGWC<_>, _, TR, _>(
+        VerificationStrategy::<_, VerifierSHPLONK<_>>::finalize(
+            verify_proof::<_, VerifierSHPLONK<_>, _, TR, _>(
                 params.verifier_params(),
                 pk.get_vk(),
                 AccumulatorStrategy::new(params.verifier_params()),

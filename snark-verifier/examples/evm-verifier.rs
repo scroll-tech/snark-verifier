@@ -4,14 +4,13 @@ use halo2_proofs::{
     dev::MockProver,
     halo2curves::bn256::{Bn256, Fq, Fr, G1Affine},
     plonk::{
-        create_proof, keygen_pk, keygen_vk, verify_proof, Advice, Assigned, Circuit, Column,
+        create_proof, keygen_pk, keygen_vk, verify_proof, Advice, Circuit, Column,
         ConstraintSystem, Error, Fixed, Instance, ProvingKey, VerifyingKey,
     },
     poly::{
         commitment::{Params, ParamsProver},
         kzg::{
             commitment::{KZGCommitmentScheme, ParamsKZG},
-            multiopen::{ProverGWC, VerifierGWC},
             strategy::AccumulatorStrategy,
         },
         Rotation, VerificationStrategy,
@@ -191,22 +190,22 @@ fn gen_proof<C: Circuit<Fr>>(
     let instances = instances.iter().map(|instances| instances.as_slice()).collect_vec();
     let proof = {
         let mut transcript = TranscriptWriterBuffer::<_, G1Affine, _>::init(Vec::new());
-        create_proof::<KZGCommitmentScheme<Bn256>, ProverGWC<_>, _, _, EvmTranscript<_, _, _, _>, _>(
-            params,
-            pk,
-            &[circuit],
-            &[instances.as_slice()],
-            OsRng,
-            &mut transcript,
-        )
+        create_proof::<
+            KZGCommitmentScheme<Bn256>,
+            ProverSHPLONK<_>,
+            _,
+            _,
+            EvmTranscript<_, _, _, _>,
+            _,
+        >(params, pk, &[circuit], &[instances.as_slice()], OsRng, &mut transcript)
         .unwrap();
         transcript.finalize()
     };
 
     let accept = {
         let mut transcript = TranscriptReadBuffer::<_, G1Affine, _>::init(proof.as_slice());
-        VerificationStrategy::<_, VerifierGWC<_>>::finalize(
-            verify_proof::<_, VerifierGWC<_>, _, EvmTranscript<_, _, _, _>, _>(
+        VerificationStrategy::<_, VerifierSHPLONK<_>>::finalize(
+            verify_proof::<_, VerifierSHPLONK<_>, _, EvmTranscript<_, _, _, _>, _>(
                 params.verifier_params(),
                 pk.get_vk(),
                 AccumulatorStrategy::new(params.verifier_params()),
@@ -231,6 +230,7 @@ fn gen_evm_verifier(
 
     let loader = EvmLoader::new::<Fq, Fr>();
     let protocol = protocol.loaded(&loader);
+
     let mut transcript = EvmTranscript::<_, Rc<EvmLoader>, _, _>::new(&loader);
 
     let instances = transcript.load_instances(num_instance);
@@ -240,7 +240,7 @@ fn gen_evm_verifier(
     evm::compile_yul(&loader.yul_code())
 }
 
-fn evm_verify(deployment_code: Vec<u8>, instances: Vec<Vec<Fr>>, proof: Vec<u8>) {
+fn evm_verify(deployment_code: Vec<u8>, instances: Vec<Vec<Fr>>, proof: Vec<u8>) -> bool {
     let calldata = encode_calldata(&instances, &proof);
     let success = {
         let mut evm = ExecutorBuilder::default().with_gas_limit(u64::MAX.into()).build();
@@ -253,7 +253,7 @@ fn evm_verify(deployment_code: Vec<u8>, instances: Vec<Vec<Fr>>, proof: Vec<u8>)
 
         !result.reverted
     };
-    assert!(success);
+    success
 }
 
 fn main() {
@@ -264,5 +264,6 @@ fn main() {
     let deployment_code = gen_evm_verifier(&params, pk.get_vk(), StandardPlonk::num_instance());
 
     let proof = gen_proof(&params, &pk, circuit.clone(), circuit.instances());
-    evm_verify(deployment_code, circuit.instances(), proof);
+    let res = evm_verify(deployment_code.clone(), circuit.instances(), proof);
+    assert!(res)
 }
