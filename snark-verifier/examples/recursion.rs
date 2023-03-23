@@ -695,38 +695,147 @@ mod recursion {
             let mut assigned_advices = HashMap::new();
             // POC so will only do mock prover and not real prover
             let mut first_pass = halo2_base::SKIP_FIRST_PASS; // assume using simple floor planner
-            layouter
-                .assign_region(
-                    || "Recursion Circuit",
-                    |mut region| {
-                        if first_pass {
-                            first_pass = false;
-                            return Ok(());
-                        }
-                        // clone the builder so we can re-use the circuit for both vk and pk gen
-                        let builder = circuit.builder.borrow();
-                        let assignments = builder.assign_all(
-                            &range.gate,
-                            &range.lookup_advice,
-                            &range.q_lookup,
-                            &mut region,
-                            Default::default(),
-                        );
-                        *circuit.break_points.borrow_mut() = assignments.break_points;
-                        assigned_advices = assignments.assigned_advices;
-                        Ok(())
-                    },
-                )
-                .unwrap();
+            let mut assigned_instances = Vec::new();
+            layouter.assign_region(
+                || "",
+                |region| {
+                    if first_pass {
+                        first_pass = false;
+                        return Ok(());
+                    }
+                    let mut ctx = Context::new(
+                        region,
+                        ContextParams {
+                            max_rows,
+                            num_context_ids: 1,
+                            fixed_columns: config.base_field_config.range.gate.constants.clone(),
+                        },
+                    );
 
-            // expose public instances
-            let mut layouter = layouter.namespace(|| "expose");
-            for (i, instance) in self.assigned_instances.iter().enumerate() {
-                let cell = instance.cell.unwrap();
-                let (cell, _) = assigned_advices
-                    .get(&(cell.context_id, cell.offset))
-                    .expect("instance not assigned");
-                layouter.constrain_instance(*cell, config.instance, i);
+                    let [preprocessed_digest, initial_state, state, round] = [
+                        self.instances[Self::PREPROCESSED_DIGEST_ROW],
+                        self.instances[Self::INITIAL_STATE_ROW],
+                        self.instances[Self::STATE_ROW],
+                        self.instances[Self::ROUND_ROW],
+                    ]
+                    .map(|instance| {
+                        main_gate.assign_integer(&mut ctx, Value::known(instance)).unwrap()
+                    });
+                    let first_round = main_gate.is_zero(&mut ctx, &round);
+                    let not_first_round = main_gate.not(&mut ctx, Existing(&first_round));
+
+                    let loader = Halo2Loader::new(config.ecc_chip(), ctx);
+                    let (mut app_instances, app_accumulators) =
+                        succinct_verify(&self.svk, &loader, &self.app, None);
+                    let (mut previous_instances, previous_accumulators) = succinct_verify(
+                        &self.svk,
+                        &loader,
+                        &self.previous,
+                        Some(preprocessed_digest.clone()),
+                    );
+
+                    let default_accmulator = self.load_default_accumulator(&loader)?;
+                    let previous_accumulators = previous_accumulators
+                        .iter()
+                        .map(|previous_accumulator| {
+                            select_accumulator(
+                                &loader,
+                                &first_round,
+                                &default_accmulator,
+                                previous_accumulator,
+                            )
+                        })
+                        .collect::<Result<Vec<_>, Error>>()?;
+
+                    let KzgAccumulator { lhs, rhs } = accumulate(
+                        &loader,
+                        [app_accumulators, previous_accumulators].concat(),
+                        self.as_proof(),
+                    );
+
+                    let lhs = lhs.into_assigned();
+                    let rhs = rhs.into_assigned();
+                    let app_instances = app_instances.pop().unwrap();
+                    let previous_instances = previous_instances.pop().unwrap();
+
+                    let mut ctx = loader.ctx_mut();
+                    for (lhs, rhs) in [
+                        // Propagate preprocessed_digest
+                        (
+                            &main_gate.mul(
+                                &mut ctx,
+                                Existing(&preprocessed_digest),
+                                Existing(&not_first_round),
+                            ),
+                            &previous_instances[Self::PREPROCESSED_DIGEST_ROW],
+                        ),
+                        // Propagate initial_state
+                        (
+                            &main_gate.mul(
+                                &mut ctx,
+                                Existing(&initial_state),
+                                Existing(&not_first_round),
+                            ),
+                            &previous_instances[Self::INITIAL_STATE_ROW],
+                        ),
+                        // Verify initial_state is same as the first application snark
+                        (
+                            &main_gate.mul(
+                                &mut ctx,
+                                Existing(&initial_state),
+                                Existing(&first_round),
+                            ),
+                            &main_gate.mul(
+                                &mut ctx,
+                                Existing(&app_instances[0]),
+                                Existing(&first_round),
+                            ),
+                        ),
+                        // Verify current state is same as the current application snark
+                        (&state, &app_instances[1]),
+                        // Verify previous state is same as the current application snark
+                        (
+                            &main_gate.mul(
+                                &mut ctx,
+                                Existing(&app_instances[0]),
+                                Existing(&not_first_round),
+                            ),
+                            &previous_instances[Self::STATE_ROW],
+                        ),
+                        // Verify round is increased by 1 when not at first round
+                        (
+                            &round,
+                            &main_gate.add(
+                                &mut ctx,
+                                Existing(&not_first_round),
+                                Existing(&previous_instances[Self::ROUND_ROW]),
+                            ),
+                        ),
+                    ] {
+                        ctx.region.constrain_equal(lhs.cell(), rhs.cell())?;
+                    }
+
+                    // IMPORTANT:
+                    config.base_field_config.finalize(&mut ctx);
+                    #[cfg(feature = "display")]
+                    dbg!(ctx.total_advice);
+                    #[cfg(feature = "display")]
+                    println!("Advice columns used: {}", ctx.advice_alloc[0][0].0 + 1);
+
+                    assigned_instances.extend(
+                        [lhs.x(), lhs.y(), rhs.x(), rhs.y()]
+                            .into_iter()
+                            .flat_map(|coordinate| coordinate.limbs())
+                            .chain([preprocessed_digest, initial_state, state, round].iter())
+                            .map(|assigned| assigned.cell()),
+                    );
+                    Ok(())
+                },
+            )?;
+
+            assert_eq!(assigned_instances.len(), 4 * LIMBS + 4);
+            for (row, limb) in assigned_instances.into_iter().enumerate() {
+                layouter.constrain_instance(limb, config.instance, row)?;
             }
 
             Ok(())

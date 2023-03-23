@@ -1,5 +1,8 @@
-use aggregation::{AggregationCircuit, AggregationConfigParams};
-use halo2_base::{gates::builder::CircuitBuilderStage, halo2_proofs, utils::fs::gen_srs};
+use ethereum_types::Address;
+use halo2_base::halo2_proofs::{
+    self,
+    poly::kzg::multiopen::{ProverSHPLONK, VerifierSHPLONK},
+};
 use halo2_proofs::{
     dev::MockProver,
     halo2curves::bn256::{Bn256, Fq, Fr, G1Affine},
@@ -8,7 +11,6 @@ use halo2_proofs::{
         commitment::ParamsProver,
         kzg::{
             commitment::{KZGCommitmentScheme, ParamsKZG},
-            multiopen::{ProverGWC, VerifierGWC},
             strategy::AccumulatorStrategy,
         },
         VerificationStrategy,
@@ -22,7 +24,7 @@ use snark_verifier::{
         evm::{self, encode_calldata, Address, EvmLoader, ExecutorBuilder},
         native::NativeLoader,
     },
-    pcs::kzg::{Gwc19, KzgAs, LimbsEncoding},
+    pcs::kzg::{Bdfg21, Kzg, KzgAs, LimbsEncoding},
     system::halo2::{compile, transcript::evm::EvmTranscript, Config},
     verifier::{self, SnarkVerifier},
 };
@@ -31,9 +33,9 @@ use std::{env::set_var, fs::File, io::Cursor, rc::Rc};
 const LIMBS: usize = 3;
 const BITS: usize = 88;
 
-type As = KzgAs<Bn256, Gwc19>;
-type PlonkSuccinctVerifier = verifier::plonk::PlonkSuccinctVerifier<As, LimbsEncoding<LIMBS, BITS>>;
-type PlonkVerifier = verifier::plonk::PlonkVerifier<As, LimbsEncoding<LIMBS, BITS>>;
+type Pcs = Kzg<Bn256, Bdfg21>;
+type As = KzgAs<Pcs>;
+type Plonk = verifier::Plonk<Pcs, LimbsEncoding<LIMBS, BITS>>;
 
 mod application {
     use super::halo2_proofs::{
@@ -42,7 +44,6 @@ mod application {
         poly::Rotation,
     };
     use super::Fr;
-    use halo2_base::halo2_proofs::plonk::Assigned;
     use rand::RngCore;
 
     #[derive(Clone, Copy)]
@@ -360,33 +361,9 @@ mod aggregation {
                         .unwrap();
                 (accumulator, transcript.finalize())
             };
-
-            // create thread builder and run aggregation witness gen
-            let builder = match stage {
-                CircuitBuilderStage::Mock => GateThreadBuilder::mock(),
-                CircuitBuilderStage::Prover => GateThreadBuilder::prover(),
-                CircuitBuilderStage::Keygen => GateThreadBuilder::keygen(),
-            };
-            // create halo2loader
-            let range = RangeChip::<Fr>::default(lookup_bits);
-            let fp_chip = FpChip::<Fr>::new(&range, BITS, LIMBS);
-            let ecc_chip = BaseFieldEccChip::new(&fp_chip);
-            let loader = Halo2Loader::new(ecc_chip, builder);
-
-            let KzgAccumulator { lhs, rhs } =
-                aggregate(&svk, &loader, &snarks, as_proof.as_slice());
-            let lhs = lhs.assigned();
-            let rhs = rhs.assigned();
-            let assigned_instances = lhs
-                .x
-                .truncation
-                .limbs
-                .iter()
-                .chain(lhs.y.truncation.limbs.iter())
-                .chain(rhs.x.truncation.limbs.iter())
-                .chain(rhs.y.truncation.limbs.iter())
-                .copied()
-                .collect_vec();
+            let KzgAccumulator { lhs, rhs } = accumulator;
+            let instances =
+                [lhs.x, lhs.y, rhs.x, rhs.y].map(fe_to_limbs::<_, _, LIMBS, BITS>).concat();
 
             #[cfg(debug_assertions)]
             {
@@ -451,76 +428,63 @@ mod aggregation {
             config: Self::Config,
             mut layouter: impl Layouter<Fr>,
         ) -> Result<(), plonk::Error> {
-            // copied from RangeCircuitBuilder::synthesize but with extra logic to expose public instances
-            let range = config.range;
-            let circuit = &self.circuit.0;
-            range.load_lookup_table(&mut layouter).expect("load lookup table should not fail");
+            config.range().load_lookup_table(&mut layouter)?;
+            let max_rows = config.range().gate.max_rows;
 
-            // we later `take` the builder, so we need to save this value
-            let witness_gen_only = circuit.builder.borrow().witness_gen_only();
-            let mut assigned_advices = HashMap::new();
+            let mut first_pass = halo2_base::SKIP_FIRST_PASS; // assume using simple floor planner
+            let mut assigned_instances: Option<Vec<Cell>> = None;
+            layouter.assign_region(
+                || "",
+                |region| {
+                    if first_pass {
+                        first_pass = false;
+                        return Ok(());
+                    }
+                    let witness_time = start_timer!(|| "Witness Collection");
+                    let ctx = Context::new(
+                        region,
+                        ContextParams {
+                            max_rows,
+                            num_context_ids: 1,
+                            fixed_columns: config.base_field_config.range.gate.constants.clone(),
+                        },
+                    );
 
-            let mut first_pass = SKIP_FIRST_PASS;
-            layouter
-                .assign_region(
-                    || "AggregationCircuit",
-                    |mut region| {
-                        if first_pass {
-                            first_pass = false;
-                            return Ok(());
-                        }
-                        // only support FirstPhase in this Builder because getting challenge value requires more specialized witness generation during synthesize
-                        if !witness_gen_only {
-                            // clone the builder so we can re-use the circuit for both vk and pk gen
-                            let builder = circuit.builder.borrow();
-                            let assignments = builder.assign_all(
-                                &range.gate,
-                                &range.lookup_advice,
-                                &range.q_lookup,
-                                &mut region,
-                                Default::default(),
-                            );
-                            *circuit.break_points.borrow_mut() = assignments.break_points;
-                            assigned_advices = assignments.assigned_advices;
-                        } else {
-                            #[cfg(feature = "display")]
-                            let start0 = std::time::Instant::now();
-                            let builder = circuit.builder.take();
-                            let break_points = circuit.break_points.take();
-                            for (phase, (threads, break_points)) in builder
-                                .threads
-                                .into_iter()
-                                .zip(break_points.into_iter())
-                                .enumerate()
-                                .take(1)
-                            {
-                                assign_threads_in(
-                                    phase,
-                                    threads,
-                                    &range.gate,
-                                    &range.lookup_advice[phase],
-                                    &mut region,
-                                    break_points,
-                                );
-                            }
-                            #[cfg(feature = "display")]
-                            println!("assign threads in {:?}", start0.elapsed());
-                        }
-                        Ok(())
-                    },
-                )
-                .unwrap();
+                    let ecc_chip = config.ecc_chip();
+                    let loader = Halo2Loader::new(ecc_chip, ctx);
+                    let KzgAccumulator { lhs, rhs } =
+                        aggregate(&self.svk, &loader, &self.snarks, self.as_proof());
 
-            if !witness_gen_only {
-                // expose public instances
-                let mut layouter = layouter.namespace(|| "expose");
-                for (i, instance) in self.assigned_instances.iter().enumerate() {
-                    let cell = instance.cell.unwrap();
-                    let (cell, _) = assigned_advices
-                        .get(&(cell.context_id, cell.offset))
-                        .expect("instance not assigned");
-                    layouter.constrain_instance(*cell, config.instance, i);
-                }
+                    let lhs = lhs.assigned();
+                    let rhs = rhs.assigned();
+
+                    config.base_field_config.finalize(&mut loader.ctx_mut());
+                    #[cfg(feature = "display")]
+                    println!("Total advice cells: {}", loader.ctx().total_advice);
+                    #[cfg(feature = "display")]
+                    println!("Advice columns used: {}", loader.ctx().advice_alloc[0].0 + 1);
+
+                    let instances: Vec<_> = lhs
+                        .x
+                        .truncation
+                        .limbs
+                        .iter()
+                        .chain(lhs.y.truncation.limbs.iter())
+                        .chain(rhs.x.truncation.limbs.iter())
+                        .chain(rhs.y.truncation.limbs.iter())
+                        .map(|assigned| assigned.cell().clone())
+                        .collect();
+                    assigned_instances = Some(instances);
+                    end_timer!(witness_time);
+                    Ok(())
+                },
+            )?;
+
+            // Expose instances
+            // TODO: use less instances by following Scroll's strategy of keeping only last bit of y coordinate
+            let mut layouter = layouter.namespace(|| "expose");
+            for (i, cell) in assigned_instances.unwrap().into_iter().enumerate() {
+                layouter.constrain_instance(cell, config.instance, i)?;
             }
             Ok(())
         }
@@ -549,7 +513,7 @@ fn gen_proof<
     let instances = instances.iter().map(|instances| instances.as_slice()).collect_vec();
     let proof = {
         let mut transcript = TW::init(Vec::new());
-        create_proof::<KZGCommitmentScheme<Bn256>, ProverGWC<_>, _, _, TW, _>(
+        create_proof::<KZGCommitmentScheme<Bn256>, ProverSHPLONK<_>, _, _, TW, _>(
             params,
             pk,
             &[circuit],
@@ -563,8 +527,8 @@ fn gen_proof<
 
     let accept = {
         let mut transcript = TR::init(Cursor::new(proof.clone()));
-        VerificationStrategy::<_, VerifierGWC<_>>::finalize(
-            verify_proof::<_, VerifierGWC<_>, _, TR, _>(
+        VerificationStrategy::<_, VerifierSHPLONK<_>>::finalize(
+            verify_proof::<_, VerifierSHPLONK<_>, _, TR, _>(
                 params.verifier_params(),
                 pk.get_vk(),
                 AccumulatorStrategy::new(params.verifier_params()),
@@ -675,18 +639,6 @@ fn main() {
         aggregation::AggregationCircuit::num_instance(),
         aggregation::AggregationCircuit::accumulator_indices(),
     );
-
-    let break_points = agg_circuit.break_points();
-    drop(agg_circuit);
-
-    let agg_circuit = AggregationCircuit::new(
-        CircuitBuilderStage::Prover,
-        Some(break_points),
-        agg_config.lookup_bits,
-        params_app.get_g()[0],
-        snarks,
-    );
-    let instances = agg_circuit.instances();
     let proof = gen_proof::<_, _, EvmTranscript<G1Affine, _, _, _>, EvmTranscript<G1Affine, _, _, _>>(
         &params,
         &pk,
