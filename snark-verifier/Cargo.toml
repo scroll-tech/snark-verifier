@@ -17,7 +17,7 @@ serde = { version = "1.0", features = ["derive"] }
 # Use halo2-base as non-optional dependency because it re-exports halo2_proofs, halo2curves, and poseidon, using different repos based on feature flag "halo2-axiom" or "halo2-pse"
 halo2-base = { git = "https://github.com/scroll-tech/halo2-lib", branch = "halo2-ecc-snark-verifier-0323" }
 # This poseidon is identical to PSE (for now) but uses axiom's halo2curves; otherwise would require patching
-poseidon-axiom = { git = "https://github.com/axiom-crypto/halo2.git", branch = "axiom/faster-witness-generation", package = "poseidon", optional = true }
+poseidon-axiom = { git = "https://github.com/axiom-crypto/halo2.git", branch = "axiom/dev", package = "poseidon", optional = true }
 poseidon= { git = "https://github.com/privacy-scaling-explorations/poseidon", optional = true }
 
 # parallel

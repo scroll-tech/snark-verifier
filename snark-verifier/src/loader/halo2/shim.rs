@@ -160,9 +160,9 @@ mod halo2_lib {
     impl<'a, F: PrimeField> Context for halo2_base::Context<'a, F> {
         fn constrain_equal(&mut self, lhs: Cell, rhs: Cell) -> Result<(), Error> {
             #[cfg(feature = "halo2-axiom")]
-            self.region.constrain_equal(&lhs, &rhs);
+            self.region.constrain_equal(&lhs, &rhs)?;
             #[cfg(feature = "halo2-pse")]
-            self.region.constrain_equal(lhs, rhs);
+            self.region.constrain_equal(lhs, rhs)?;
             Ok(())
         }
 
@@ -263,8 +263,7 @@ mod halo2_lib {
             a: &Self::AssignedInteger,
             b: &Self::AssignedInteger,
         ) -> Result<(), Error> {
-            ctx.region.constrain_equal(a.cell(), b.cell());
-            Ok(())
+            ctx.region.constrain_equal(a.cell(), b.cell())
         }
     }
 
