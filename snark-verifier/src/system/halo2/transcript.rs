@@ -1,7 +1,6 @@
 //! Transcripts implemented with both `halo2_proofs::transcript` and
 //! `crate::util::transcript`.
 use crate::halo2_proofs;
-use halo2_proofs::transcript::{Blake2bRead, Blake2bWrite, Challenge255};
 use crate::{
     loader::native::{self, NativeLoader},
     util::{
@@ -10,6 +9,7 @@ use crate::{
     },
     Error,
 };
+use halo2_proofs::transcript::{Blake2bRead, Blake2bWrite, Challenge255};
 use std::io::{Read, Write};
 
 #[cfg(feature = "loader_evm")]
