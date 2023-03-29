@@ -1,5 +1,4 @@
 use eth_types::Field;
-use halo2_base::halo2_proofs::plonk::Selector;
 use zkevm_circuits::state_circuit::StateCircuit;
 
 use crate::CircuitExt;
@@ -8,19 +7,10 @@ impl<F: Field> CircuitExt<F> for StateCircuit<F> {
     /// Return the number of instances of the circuit.
     /// This may depend on extra circuit parameters but NOT on private witnesses.
     fn num_instance(&self) -> Vec<usize> {
-        todo!()
+        vec![0]
     }
 
     fn instances(&self) -> Vec<Vec<F>> {
-        todo!()
-    }
-
-    fn accumulator_indices() -> Option<Vec<(usize, usize)>> {
-        todo!()
-    }
-
-    /// Output the simple selector columns (before selector compression) of the circuit
-    fn selectors(_: &Self::Config) -> Vec<Selector> {
-        todo!()
+        vec![vec![]]
     }
 }
