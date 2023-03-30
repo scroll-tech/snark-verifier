@@ -18,6 +18,6 @@ impl<
     }
 
     fn instances(&self) -> Vec<Vec<F>> {
-        vec![vec![]]
+        vec![]
     }
 }

@@ -11,6 +11,6 @@ impl<F: Field> CircuitExt<F> for StateCircuit<F> {
     }
 
     fn instances(&self) -> Vec<Vec<F>> {
-        vec![vec![]]
+        vec![]
     }
 }
