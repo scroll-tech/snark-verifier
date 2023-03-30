@@ -185,7 +185,7 @@ pub fn evm_verify(deployment_code: Vec<u8>, instances: Vec<Vec<Fr>>, proof: Vec<
         let verifier = evm.deploy(caller, deployment_code.into(), 0.into()).address.unwrap();
         let result = evm.call_raw(caller, verifier, calldata.into(), 0.into());
 
-        dbg!(result.gas_used);
+        log::info!("gas used: {}", result.gas_used);
 
         !result.reverted
     };

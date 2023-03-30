@@ -6,7 +6,6 @@ use halo2_base::halo2_proofs::{
 };
 use halo2_proofs::{
     circuit::Layouter,
-    dev::MockProver,
     halo2curves::{
         bn256::{Bn256, Fr, G1Affine},
         group::ff::Field,
@@ -16,7 +15,7 @@ use halo2_proofs::{
         VerifyingKey,
     },
     poly::{
-        commitment::{Params, ParamsProver, Prover, Verifier},
+        commitment::{ParamsProver, Prover, Verifier},
         kzg::{
             commitment::{KZGCommitmentScheme, ParamsKZG},
             msm::DualMSM,
@@ -91,7 +90,8 @@ where
 {
     #[cfg(debug_assertions)]
     {
-        MockProver::run(params.k(), &circuit, instances.clone()).unwrap().assert_satisfied();
+        use halo2_proofs::poly::commitment::Params;
+        halo2_proofs::dev::MockProver::run(params.k(), &circuit, instances.clone()).unwrap().assert_satisfied();
     }
 
     if let Some((instance_path, proof_path)) = path {
