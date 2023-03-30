@@ -38,28 +38,24 @@ mod test {
         assert!(verify_circuit(circuit));
     }
 
-    #[ignore]
     #[test]
     fn test_mpt_circuit_verification() {
         let circuit = super_circuit().mpt_circuit;
         assert!(verify_circuit(circuit));
     }
 
-    #[ignore]
     #[test]
     fn test_poseidon_circuit_verification() {
         let circuit = super_circuit().poseidon_circuit;
         assert!(verify_circuit(circuit));
     }
 
-    #[ignore]
     #[test]
     fn test_state_circuit_verification() {
         let circuit = super_circuit().state_circuit;
         assert!(verify_circuit(circuit));
     }
 
-    #[ignore]
     #[test]
     fn test_super_circuit_verification() {
         let circuit = super_circuit();
