@@ -28,7 +28,7 @@ ethereum-types = { version = "0.14", default-features = false, features = ["std"
 # rlp = { version = "0.5", default-features = false, features = ["std"], optional = true }
 
 # zkevm benchmarks
-zkevm-circuits = { git = "https://github.com/scroll-tech/zkevm-circuits.git", branch = "halo2-ecc-snark-verifier-0323", features = ["test", "zktrie"] }
+zkevm-circuits = { git = "https://github.com/scroll-tech/zkevm-circuits.git", branch = "halo2-ecc-snark-verifier-0323", default-features = false, features = ["test", "zktrie"] }
 bus-mapping = { git = "https://github.com/scroll-tech/zkevm-circuits.git", branch = "halo2-ecc-snark-verifier-0323", optional = true }
 eth-types = { git = "https://github.com/scroll-tech/zkevm-circuits.git", branch = "halo2-ecc-snark-verifier-0323" }
 mock = { git = "https://github.com/scroll-tech/zkevm-circuits.git", branch = "halo2-ecc-snark-verifier-0323", optional = true }
