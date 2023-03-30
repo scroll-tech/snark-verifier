@@ -27,7 +27,7 @@ debug-assertions = false
 lto = "fat" 
 # codegen-units = 1
 panic = "abort"
-incremental = false
+incremental = true
 
 # For performance profiling
 [profile.flamegraph]

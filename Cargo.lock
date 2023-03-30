@@ -1406,6 +1406,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "env_logger"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "85cdab6a89accf66733ad5a1693a4dcced6aeff64602b634530dd73c1f3ee9f0"
+dependencies = [
+ "humantime",
+ "is-terminal",
+ "log",
+ "regex",
+ "termcolor",
+]
+
+[[package]]
 name = "environmental"
 version = "1.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4691,6 +4704,7 @@ dependencies = [
  "criterion",
  "criterion-macro",
  "crossterm",
+ "env_logger 0.10.0",
  "eth-types",
  "ethereum-types 0.14.1",
  "ethers-signers",
@@ -4698,6 +4712,7 @@ dependencies = [
  "hex",
  "itertools",
  "lazy_static",
+ "log",
  "mock",
  "num-bigint",
  "num-integer",

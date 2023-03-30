@@ -16,71 +16,85 @@ mod test {
         CircuitExt,
     };
     use ark_std::test_rng;
-    use bus_mapping::circuit_input_builder::CircuitsParams;
+    use bus_mapping::{circuit_input_builder::CircuitsParams, mock::BlockData};
     use eth_types::{address, bytecode, geth_types::GethData, U256};
     use ethers_signers::{LocalWallet, Signer};
-    use halo2_base::{halo2_proofs::halo2curves::bn256::Fr, utils::fs::gen_srs};
+    use halo2_base::{
+        halo2_proofs::{halo2curves::bn256::Fr, plonk::Circuit},
+        utils::fs::gen_srs,
+    };
     use mock::{TestContext, MOCK_CHAIN_ID, MOCK_DIFFICULTY};
     use rand::SeedableRng;
     use rand_chacha::ChaCha20Rng;
     use std::{collections::HashMap, env};
-    use zkevm_circuits::super_circuit::SuperCircuit;
+    use zkevm_circuits::{
+        evm_circuit::EvmCircuit,
+        mpt_circuit::MptCircuit,
+        poseidon_circuit::PoseidonCircuit,
+        state_circuit::StateCircuit,
+        super_circuit::SuperCircuit,
+        util::{log2_ceil, SubCircuit},
+        witness::block_convert,
+    };
 
-    const TEST_CURRENT_K: u32 = 18;
-    const TEST_MAX_CALLDATA: usize = 32;
+    const TEST_CURRENT_K: u32 = 19;
+    const TEST_MAX_CALLDATA: usize = 3200;
     const TEST_MAX_INNER_BLOCKS: usize = 1;
     const TEST_MAX_TXS: usize = 1;
     const TEST_MOCK_RANDOMNESS: u64 = 0x100;
 
     #[test]
     fn test_evm_circuit_verification() {
-        let circuit = super_circuit().evm_circuit;
+        let circuit = build_circuit::<EvmCircuit<Fr>>();
         assert!(verify_circuit(circuit));
     }
 
     #[test]
     fn test_mpt_circuit_verification() {
-        let circuit = super_circuit().mpt_circuit;
+        let circuit = build_circuit::<MptCircuit<Fr>>();
         assert!(verify_circuit(circuit));
     }
 
     #[test]
     fn test_poseidon_circuit_verification() {
-        let circuit = super_circuit().poseidon_circuit;
+        let circuit = build_circuit::<PoseidonCircuit<Fr>>();
         assert!(verify_circuit(circuit));
     }
 
     #[test]
     fn test_state_circuit_verification() {
-        let circuit = super_circuit().state_circuit;
+        let circuit = build_circuit::<StateCircuit<Fr>>();
         assert!(verify_circuit(circuit));
     }
 
     #[test]
     fn test_super_circuit_verification() {
-        let circuit = super_circuit();
+        let circuit = build_circuit::<
+            SuperCircuit<
+                Fr,
+                TEST_MAX_TXS,
+                TEST_MAX_CALLDATA,
+                TEST_MAX_INNER_BLOCKS,
+                TEST_MOCK_RANDOMNESS,
+            >,
+        >();
         assert!(verify_circuit(circuit));
     }
 
-    fn super_circuit() -> SuperCircuit<
-        Fr,
-        TEST_MAX_TXS,
-        TEST_MAX_CALLDATA,
-        TEST_MAX_INNER_BLOCKS,
-        TEST_MOCK_RANDOMNESS,
-    > {
-        let block = block_1tx();
+    fn build_circuit<C: SubCircuit<Fr> + Circuit<Fr>>() -> C {
+        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("error")).init();
+        let geth_data = block_1tx();
         let circuits_params = CircuitsParams {
             max_txs: TEST_MAX_TXS,
             max_calldata: TEST_MAX_CALLDATA,
-            max_rws: 256,
-            max_copy_rows: 256,
+            max_rws: 200_000,
+            max_copy_rows: 25600,
             max_exp_steps: 256,
-            max_bytecode: 512,
+            max_bytecode: 5120,
             // TODO: fix after zkevm-circuits update.
             // max_evm_rows: 0,
             // max_keccak_rows: 0,
-            keccak_padding: None,
+            keccak_padding: Some(200_000),
             max_inner_blocks: TEST_MAX_INNER_BLOCKS,
         };
         let mut difficulty_be_bytes = [0u8; 32];
@@ -90,15 +104,25 @@ mod test {
         env::set_var("CHAIN_ID", hex::encode(chain_id_be_bytes));
         env::set_var("DIFFICULTY", hex::encode(difficulty_be_bytes));
 
-        SuperCircuit::<
-            Fr,
-            TEST_MAX_TXS,
-            TEST_MAX_CALLDATA,
-            TEST_MAX_INNER_BLOCKS,
-            TEST_MOCK_RANDOMNESS,
-        >::build(block, circuits_params)
-        .unwrap()
-        .1
+        let block_data =
+            BlockData::new_from_geth_data_with_params(geth_data.clone(), circuits_params);
+        let mut builder = block_data.new_circuit_input_builder();
+        builder
+            .handle_block(&geth_data.eth_block, &geth_data.geth_traces)
+            .expect("could not handle block tx");
+
+        let mut block = block_convert(&builder.block, &builder.code_db).unwrap();
+        block.evm_circuit_pad_to = circuits_params.max_rws;
+
+        const NUM_BLINDING_ROWS: usize = 64;
+        let (_, rows_needed) = C::min_num_rows_block(&block);
+        let k = log2_ceil(NUM_BLINDING_ROWS + rows_needed);
+        log::debug!("circuit needs k = {}", k);
+
+        let circuit = C::new_from_block(&block);
+
+        //let instance = circuit.instance();
+        circuit
     }
 
     fn block_1tx() -> GethData {
