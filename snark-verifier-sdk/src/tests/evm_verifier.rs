@@ -6,7 +6,7 @@ use ark_std::test_rng;
 use halo2_base::halo2_proofs;
 use halo2_proofs::halo2curves::bn256::Bn256;
 use snark_verifier::loader::halo2::halo2_ecc::halo2_base::utils::fs::gen_srs;
-use snark_verifier::pcs::kzg::{Bdfg21, Kzg};
+use snark_verifier::pcs::kzg::{Bdfg21, KzgAs};
 
 #[test]
 fn test_evm_verification() {
@@ -17,7 +17,7 @@ fn test_evm_verification() {
 
     let circuit = TestCircuit1::rand(&mut rng);
     let pk = gen_pk(&params, &circuit, None);
-    let deployment_code = gen_evm_verifier::<TestCircuit1, Kzg<Bn256, Bdfg21>>(
+    let deployment_code = gen_evm_verifier::<TestCircuit1, KzgAs<Bn256, Bdfg21>>(
         &params,
         pk.get_vk(),
         circuit.num_instance(),
@@ -25,6 +25,6 @@ fn test_evm_verification() {
     );
 
     let instances = circuit.instances();
-    let proof = gen_evm_proof_shplonk(&params, &pk, circuit.clone(), instances.clone(), &mut rng);
+    let proof = gen_evm_proof_shplonk(&params, &pk, circuit.clone(), instances.clone());
     evm_verify(deployment_code.clone(), circuit.instances(), proof)
 }

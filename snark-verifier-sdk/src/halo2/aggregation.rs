@@ -508,7 +508,6 @@ impl<F: ScalarField> Circuit<F> for RangeWithInstanceCircuitBuilder<F> {
             )
             .unwrap();
 
-<<<<<<< HEAD
         if !witness_gen_only {
             // expose public instances
             let mut layouter = layouter.namespace(|| "expose");
@@ -517,13 +516,8 @@ impl<F: ScalarField> Circuit<F> for RangeWithInstanceCircuitBuilder<F> {
                 let (cell, _) = assigned_advices
                     .get(&(cell.context_id, cell.offset))
                     .expect("instance not assigned");
-                layouter.constrain_instance(*cell, config.instance, i);
+                layouter.constrain_instance(*cell, config.instance, i)?;
             }
-=======
-        // Expose instances
-        for (i, cell) in instances.into_iter().enumerate() {
-            layouter.constrain_instance(cell, config.instance, i)?;
->>>>>>> 17ded0e... [macro] squashing commits for pre-rebase diffs
         }
         Ok(())
     }
@@ -564,7 +558,6 @@ impl Circuit<Fr> for AggregationCircuit {
     }
 }
 
-<<<<<<< HEAD
 impl CircuitExt<Fr> for AggregationCircuit {
     fn num_instance(&self) -> Vec<usize> {
         self.inner.num_instance()
@@ -572,22 +565,6 @@ impl CircuitExt<Fr> for AggregationCircuit {
 
     fn instances(&self) -> Vec<Vec<Fr>> {
         self.inner.instances()
-=======
-                    config.range().finalize(&mut loader.ctx_mut());
-                    #[cfg(feature = "display")]
-                    loader.ctx_mut().print_stats(&["Range"]);
-                    Ok(())
-                },
-            )
-            .unwrap();
-        // Expose instances
-        for (i, cell) in instances.into_iter().enumerate() {
-            layouter.constrain_instance(cell, config.instance, i)?;
-        }
-        #[cfg(feature = "display")]
-        end_timer!(witness_time);
-        Ok(())
->>>>>>> 17ded0e... [macro] squashing commits for pre-rebase diffs
     }
 
     fn accumulator_indices() -> Option<Vec<(usize, usize)>> {

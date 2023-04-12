@@ -13,7 +13,6 @@ use halo2_proofs::{
     SerdeFormat,
 };
 use itertools::Itertools;
-use serde::{Deserialize, Serialize};
 pub use snark_verifier::loader::native::NativeLoader;
 use snark_verifier::{
     pcs::kzg::{Bdfg21, Gwc19, KzgAs, LimbsEncoding},
@@ -30,7 +29,7 @@ pub mod evm;
 #[cfg(feature = "loader_halo2")]
 pub mod halo2;
 
-mod evm_circuits;
+// mod evm_circuits;
 
 #[cfg(test)]
 mod tests;

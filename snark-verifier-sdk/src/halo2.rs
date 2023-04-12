@@ -41,7 +41,7 @@ use snark_verifier::{
     verifier::plonk::PlonkProof,
 };
 use std::{
-    fs::{self, File},
+    fs::{self},
     marker::PhantomData,
     path::Path,
 };
@@ -97,7 +97,9 @@ where
     #[cfg(debug_assertions)]
     {
         use halo2_proofs::poly::commitment::Params;
-        halo2_proofs::dev::MockProver::run(params.k(), &circuit, instances.clone()).unwrap().assert_satisfied();
+        halo2_proofs::dev::MockProver::run(params.k(), &circuit, instances.clone())
+            .unwrap()
+            .assert_satisfied();
     }
 
     if let Some((instance_path, proof_path)) = path {
@@ -198,13 +200,13 @@ where
         MSMAccumulator = DualMSM<'params, Bn256>,
     >,
 {
-    if let Some(path) = &path {
+    if let Some(_path) = &path {
         #[cfg(feature = "halo2-axiom")]
-        if let Ok(snark) = read_snark(path) {
+        if let Ok(snark) = read_snark(_path) {
             return snark;
         }
         #[cfg(not(feature = "halo2-axiom"))]
-        unimplemented!("Reading SNARKs is not supported in halo2-pse because we cannot derive Serialize/Deserialize for halo2curves field elements.");
+        unimplemented!("Reading SNARKs is not supported in halo2-scroll because we cannot derive Serialize/Deserialize for halo2curves field elements.");
     }
     let protocol = compile(
         params,
