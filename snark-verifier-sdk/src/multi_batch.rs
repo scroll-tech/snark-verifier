@@ -7,6 +7,11 @@
 
 mod evm;
 mod halo2;
+mod hash;
+
+#[cfg(test)]
+mod tests;
 
 pub use evm::*;
 pub use halo2::*;
+pub(crate) use hash::*;
