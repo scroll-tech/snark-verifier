@@ -151,11 +151,7 @@ pub trait ScalarLoader<F: PrimeField> {
 
         let loader = values.first().unwrap().1.loader();
         iter::empty()
-            .chain(if constant == F::zero() {
-                None
-            } else {
-                Some(loader.load_const(&constant))
-            })
+            .chain(if constant == F::zero() { None } else { Some(loader.load_const(&constant)) })
             .chain(values.iter().map(|&(coeff, lhs, rhs)| {
                 if coeff == F::one() {
                     lhs.clone() * rhs
@@ -195,10 +191,7 @@ pub trait ScalarLoader<F: PrimeField> {
         constant: F,
     ) -> Self::LoadedScalar {
         self.sum_products_with_coeff_and_const(
-            &values
-                .iter()
-                .map(|&(lhs, rhs)| (F::one(), lhs, rhs))
-                .collect_vec(),
+            &values.iter().map(|&(lhs, rhs)| (F::one(), lhs, rhs)).collect_vec(),
             constant,
         )
     }
@@ -211,9 +204,7 @@ pub trait ScalarLoader<F: PrimeField> {
     }
 
     fn product(&self, values: &[&Self::LoadedScalar]) -> Self::LoadedScalar {
-        values
-            .iter()
-            .fold(self.load_one(), |acc, value| acc * *value)
+        values.iter().fold(self.load_one(), |acc, value| acc * *value)
     }
 
     fn batch_invert<'a>(values: impl IntoIterator<Item = &'a mut Self::LoadedScalar>)

@@ -43,12 +43,8 @@ impl<F: Field> Polynomial<F> {
     }
 
     pub fn evaluate(&self, x: F) -> F {
-        let evaluate_serial = |coeffs: &[F]| {
-            coeffs
-                .iter()
-                .rev()
-                .fold(F::zero(), |acc, coeff| acc * x + coeff)
-        };
+        let evaluate_serial =
+            |coeffs: &[F]| coeffs.iter().rev().fold(F::zero(), |acc, coeff| acc * x + coeff);
 
         #[cfg(feature = "parallel")]
         {
@@ -63,10 +59,12 @@ impl<F: Field> Polynomial<F> {
             let chunk_size = Integer::div_ceil(&self.len(), &num_threads);
             let mut results = vec![F::zero(); num_threads];
             parallelize_iter(
-                results
-                    .iter_mut()
-                    .zip(self.0.chunks(chunk_size))
-                    .zip(powers(x.pow_vartime(&[chunk_size as u64, 0, 0, 0]))),
+                results.iter_mut().zip(self.0.chunks(chunk_size)).zip(powers(x.pow_vartime(&[
+                    chunk_size as u64,
+                    0,
+                    0,
+                    0,
+                ]))),
                 |((result, coeffs), scalar)| *result = evaluate_serial(coeffs) * scalar,
             );
             results.iter().fold(F::zero(), |acc, result| acc + result)

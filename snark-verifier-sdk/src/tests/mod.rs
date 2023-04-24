@@ -8,6 +8,7 @@ use test_circuit_1::TestCircuit1;
 use test_circuit_2::TestCircuit2;
 
 mod evm_verifier;
+mod multi_batch_aggregation;
 mod single_layer_aggregation;
 mod test_circuit_1;
 mod test_circuit_2;

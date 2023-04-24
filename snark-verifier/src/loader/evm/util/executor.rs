@@ -46,13 +46,8 @@ fn get_create2_address_from_hash(
     salt: [u8; 32],
     init_code_hash: impl Into<Bytes>,
 ) -> Address {
-    let bytes = [
-        &[0xff],
-        from.into().as_bytes(),
-        salt.as_slice(),
-        init_code_hash.into().as_ref(),
-    ]
-    .concat();
+    let bytes =
+        [&[0xff], from.into().as_bytes(), salt.as_slice(), init_code_hash.into().as_ref()].concat();
 
     let hash = keccak256(&bytes);
 
@@ -292,29 +287,15 @@ impl Debugger {
 
     fn enter(&mut self, depth: usize, address: Address, kind: CallKind) {
         self.context = address;
-        self.head = self.arena.push_node(DebugNode {
-            depth,
-            address,
-            kind,
-            ..Default::default()
-        });
+        self.head = self.arena.push_node(DebugNode { depth, address, kind, ..Default::default() });
     }
 
     fn exit(&mut self) {
         if let Some(parent_id) = self.arena.arena[self.head].parent {
-            let DebugNode {
-                depth,
-                address,
-                kind,
-                ..
-            } = self.arena.arena[parent_id];
+            let DebugNode { depth, address, kind, .. } = self.arena.arena[parent_id];
             self.context = address;
-            self.head = self.arena.push_node(DebugNode {
-                depth,
-                address,
-                kind,
-                ..Default::default()
-            });
+            self.head =
+                self.arena.push_node(DebugNode { depth, address, kind, ..Default::default() });
         }
     }
 }
@@ -332,11 +313,7 @@ impl<DB: Database> Inspector<DB> for Debugger {
         let opcode_infos = spec_opcode_gas(data.env.cfg.spec_id);
         let opcode_info = &opcode_infos[op as usize];
 
-        let push_size = if opcode_info.is_push() {
-            (op - opcode::PUSH1 + 1) as usize
-        } else {
-            0
-        };
+        let push_size = if opcode_info.is_push() { (op - opcode::PUSH1 + 1) as usize } else { 0 };
         let push_bytes = match push_size {
             0 => None,
             n => {
@@ -402,12 +379,7 @@ impl<DB: Database> Inspector<DB> for Debugger {
             CallKind::Create,
         );
 
-        (
-            Return::Continue,
-            None,
-            Gas::new(call.gas_limit),
-            Bytes::new(),
-        )
+        (Return::Continue, None, Gas::new(call.gas_limit), Bytes::new())
     }
 
     fn create_end(
@@ -628,12 +600,7 @@ impl<DB: Database> Inspector<DB> for InspectorStack {
             }
         );
 
-        (
-            Return::Continue,
-            None,
-            Gas::new(call.gas_limit),
-            Bytes::new(),
-        )
+        (Return::Continue, None, Gas::new(call.gas_limit), Bytes::new())
     }
 
     fn create_end(
@@ -734,11 +701,7 @@ pub struct Executor {
 
 impl Executor {
     fn new(debugger: bool, gas_limit: U256) -> Self {
-        Executor {
-            db: InMemoryDB::default(),
-            debugger,
-            gas_limit,
-        }
+        Executor { db: InMemoryDB::default(), debugger, gas_limit }
     }
 
     pub fn db_mut(&mut self) -> &mut InMemoryDB {
@@ -750,16 +713,8 @@ impl Executor {
         let result = self.call_raw_with_env(env);
         self.commit(&result);
 
-        let RawCallResult {
-            exit_reason,
-            out,
-            gas_used,
-            gas_refunded,
-            logs,
-            debug,
-            env,
-            ..
-        } = result;
+        let RawCallResult { exit_reason, out, gas_used, gas_refunded, logs, debug, env, .. } =
+            result;
 
         let address = match (exit_reason, out) {
             (return_ok!(), TransactOut::Create(_, Some(address))) => Some(address),
@@ -794,13 +749,7 @@ impl Executor {
         let result =
             evm_inner::<_, true>(&mut env, &mut self.db.clone(), &mut inspector).transact();
         let (exec_result, state_changeset) = result;
-        let ExecutionResult {
-            exit_reason,
-            gas_refunded,
-            gas_used,
-            out,
-            ..
-        } = exec_result;
+        let ExecutionResult { exit_reason, gas_refunded, gas_used, out, .. } = exec_result;
 
         let result = match out {
             TransactOut::Call(ref data) => data.to_owned(),
@@ -824,16 +773,13 @@ impl Executor {
 
     fn commit(&mut self, result: &RawCallResult) {
         if let Some(state_changeset) = result.state_changeset.as_ref() {
-            self.db
-                .commit(state_changeset.clone().into_iter().collect());
+            self.db.commit(state_changeset.clone().into_iter().collect());
         }
     }
 
     fn inspector(&self) -> InspectorStack {
-        let mut stack = InspectorStack {
-            logs: Some(LogCollector::default()),
-            ..Default::default()
-        };
+        let mut stack =
+            InspectorStack { logs: Some(LogCollector::default()), ..Default::default() };
         if self.debugger {
             let gas_inspector = Rc::new(RefCell::new(GasInspector::default()));
             stack.gas = Some(gas_inspector.clone());
@@ -850,10 +796,7 @@ impl Executor {
         value: U256,
     ) -> Env {
         Env {
-            block: BlockEnv {
-                gas_limit: self.gas_limit,
-                ..BlockEnv::default()
-            },
+            block: BlockEnv { gas_limit: self.gas_limit, ..BlockEnv::default() },
             tx: TxEnv {
                 caller,
                 transact_to,

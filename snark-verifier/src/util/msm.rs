@@ -26,11 +26,7 @@ where
     L: Loader<C>,
 {
     fn default() -> Self {
-        Self {
-            constant: None,
-            scalars: Vec::new(),
-            bases: Vec::new(),
-        }
+        Self { constant: None, scalars: Vec::new(), bases: Vec::new() }
     }
 }
 
@@ -40,19 +36,12 @@ where
     L: Loader<C>,
 {
     pub fn constant(constant: L::LoadedScalar) -> Self {
-        Msm {
-            constant: Some(constant),
-            ..Default::default()
-        }
+        Msm { constant: Some(constant), ..Default::default() }
     }
 
     pub fn base<'b: 'a>(base: &'b L::LoadedEcPoint) -> Self {
         let one = base.loader().load_one();
-        Msm {
-            scalars: vec![one],
-            bases: vec![base],
-            ..Default::default()
-        }
+        Msm { scalars: vec![one], bases: vec![base], ..Default::default() }
     }
 
     pub(crate) fn size(&self) -> usize {
@@ -69,19 +58,9 @@ where
     }
 
     pub fn evaluate(self, gen: Option<C>) -> L::LoadedEcPoint {
-        let gen = gen.map(|gen| {
-            self.bases
-                .first()
-                .unwrap()
-                .loader()
-                .ec_point_load_const(&gen)
-        });
+        let gen = gen.map(|gen| self.bases.first().unwrap().loader().ec_point_load_const(&gen));
         let pairs = iter::empty()
-            .chain(
-                self.constant
-                    .as_ref()
-                    .map(|constant| (constant, gen.as_ref().unwrap())),
-            )
+            .chain(self.constant.as_ref().map(|constant| (constant, gen.as_ref().unwrap())))
             .chain(self.scalars.iter().zip(self.bases.into_iter()))
             .collect_vec();
         L::multi_scalar_multiplication(&pairs)
@@ -311,17 +290,12 @@ pub fn multi_scalar_multiplication<C: CurveAffine>(scalars: &[C::Scalar], bases:
         let chunk_size = Integer::div_ceil(&scalars.len(), &num_threads);
         let mut results = vec![C::Curve::identity(); num_threads];
         parallelize_iter(
-            scalars
-                .chunks(chunk_size)
-                .zip(bases.chunks(chunk_size))
-                .zip(results.iter_mut()),
+            scalars.chunks(chunk_size).zip(bases.chunks(chunk_size)).zip(results.iter_mut()),
             |((scalars, bases), result)| {
                 multi_scalar_multiplication_serial(scalars, bases, result);
             },
         );
-        results
-            .iter()
-            .fold(C::Curve::identity(), |acc, result| acc + result)
+        results.iter().fold(C::Curve::identity(), |acc, result| acc + result)
     }
     #[cfg(not(feature = "parallel"))]
     {

@@ -108,11 +108,7 @@ pub fn compile_yul(code: &str) -> Vec<u8> {
         .arg("-")
         .spawn()
         .unwrap();
-    cmd.stdin
-        .take()
-        .unwrap()
-        .write_all(code.as_bytes())
-        .unwrap();
+    cmd.stdin.take().unwrap().write_all(code.as_bytes()).unwrap();
     let output = cmd.wait_with_output().unwrap().stdout;
     let binary = *split_by_ascii_whitespace(&output).last().unwrap();
     hex::decode(binary).unwrap()

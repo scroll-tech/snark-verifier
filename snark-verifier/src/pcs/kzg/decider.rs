@@ -10,11 +10,7 @@ pub struct KzgDecidingKey<M: MultiMillerLoop> {
 
 impl<M: MultiMillerLoop> KzgDecidingKey<M> {
     pub fn new(g2: M::G2Affine, s_g2: M::G2Affine) -> Self {
-        Self {
-            g2,
-            s_g2,
-            _marker: PhantomData,
-        }
+        Self { g2, s_g2, _marker: PhantomData }
     }
 }
 
@@ -48,10 +44,7 @@ mod native {
             KzgAccumulator { lhs, rhs }: KzgAccumulator<M::G1Affine, NativeLoader>,
         ) -> bool {
             let terms = [(&lhs, &dk.g2.into()), (&rhs, &(-dk.s_g2).into())];
-            M::multi_miller_loop(&terms)
-                .final_exponentiation()
-                .is_identity()
-                .into()
+            M::multi_miller_loop(&terms).final_exponentiation().is_identity().into()
         }
 
         fn decide_all(

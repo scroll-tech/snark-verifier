@@ -311,7 +311,7 @@ mod test {
         //
         {
             std::env::set_var("VERIFY_CONFIG", "./configs/two_layer_recursion_second_layer.config");
-            
+
             let agg_circuit = AggregationCircuit::new(&params_layer_2, [layer_1_snark], &mut rng);
             let pk_outer = gen_pk(&params_layer_2, &agg_circuit, None);
             log::info!("finished layer 2 aggregation circuit generation");

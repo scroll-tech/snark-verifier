@@ -24,15 +24,10 @@ pub fn execute(deployment_code: Vec<u8>, calldata: Vec<u8>) -> (bool, u64, Vec<u
     let debug = debug();
     let caller = Address::from_low_u64_be(0xfe);
 
-    let mut evm = ExecutorBuilder::default()
-        .with_gas_limit(u64::MAX.into())
-        .set_debugger(debug)
-        .build();
+    let mut evm =
+        ExecutorBuilder::default().with_gas_limit(u64::MAX.into()).set_debugger(debug).build();
 
-    let contract = evm
-        .deploy(caller, deployment_code.into(), 0.into())
-        .address
-        .unwrap();
+    let contract = evm.deploy(caller, deployment_code.into(), 0.into()).address.unwrap();
     let result = evm.call_raw(caller, contract, calldata.into(), 0.into());
 
     let costs = result
