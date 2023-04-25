@@ -28,6 +28,9 @@ pub mod evm;
 pub mod halo2;
 
 mod evm_circuits;
+pub mod multi_batch;
+
+
 
 #[cfg(test)]
 mod tests;

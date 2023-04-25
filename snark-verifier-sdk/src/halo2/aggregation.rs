@@ -212,7 +212,7 @@ impl AggregationCircuit {
     pub fn new(
         params: &ParamsKZG<Bn256>,
         snarks: impl IntoIterator<Item = Snark>,
-        rng: impl Rng + Send,
+        rng: &mut (impl Rng + Send),
     ) -> Self {
         let svk = params.get_g()[0].into();
         let snarks = snarks.into_iter().collect_vec();
