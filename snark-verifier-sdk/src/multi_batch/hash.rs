@@ -8,7 +8,12 @@
 //!     - serialized Fr Elements
 //!
 
-use halo2_base::halo2_proofs::halo2curves::bn256::Fr;
+use halo2_base::halo2_proofs::{
+    halo2curves::bn256::{Bn256, Fr},
+    poly::kzg::commitment::ParamsKZG,
+};
+
+use crate::Snark;
 
 /// Serialize an instance from the snark
 pub(crate) fn serialize_instances(instance: &[Vec<Fr>]) -> Vec<u8> {
@@ -70,4 +75,12 @@ pub(crate) fn deserialize_instances(data: &[u8]) -> Vec<Vec<Fr>> {
         res.push(cur_column)
     }
     res
+}
+
+/// Generate a Snark proving a proof is the right
+pub(crate) fn instance_aggregation_circuit<'params>(
+    params: &'params ParamsKZG<Bn256>,
+    instance: &[Vec<Fr>],
+) -> Snark {
+    todo!()
 }
