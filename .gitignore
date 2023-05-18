@@ -5,3 +5,10 @@
 testdata
 
 Cargo.lock
+
+# local files
+*.srs
+*.log
+*.snark
+*.sol
+*.pkey

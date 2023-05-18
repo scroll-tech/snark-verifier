@@ -50,9 +50,7 @@ where
         let sets = query_sets(queries);
         let powers_of_u = &proof.u.powers(sets.len());
         let f = {
-            let powers_of_v = proof
-                .v
-                .powers(sets.iter().map(|set| set.polys.len()).max().unwrap());
+            let powers_of_v = proof.v.powers(sets.iter().map(|set| set.polys.len()).max().unwrap());
             sets.iter()
                 .map(|set| set.msm(commitments, &powers_of_v))
                 .zip(powers_of_u.iter())
@@ -67,11 +65,7 @@ where
             .zip(powers_of_u.iter())
             .map(|(w, power_of_u)| Msm::base(w) * power_of_u)
             .collect_vec();
-        let lhs = f + rhs
-            .iter()
-            .zip(z_omegas)
-            .map(|(uw, z_omega)| uw.clone() * &z_omega)
-            .sum();
+        let lhs = f + rhs.iter().zip(z_omegas).map(|(uw, z_omega)| uw.clone() * &z_omega).sum();
 
         Ok(KzgAccumulator::new(
             lhs.evaluate(Some(svk.g)),
@@ -165,10 +159,6 @@ where
 
     fn estimate_cost(queries: &Vec<Query<M::Scalar>>) -> Cost {
         let num_w = query_sets(queries).len();
-        Cost {
-            num_commitment: num_w,
-            num_msm: num_w,
-            ..Default::default()
-        }
+        Cost { num_commitment: num_w, num_msm: num_w, ..Default::default() }
     }
 }
