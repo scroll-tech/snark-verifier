@@ -143,7 +143,7 @@ mod halo2_lib {
     use halo2_base::{
         self,
         gates::{flex_gate::FlexGateConfig, GateInstructions, RangeInstructions},
-        utils::PrimeField,
+        utils::BigPrimeField as PrimeField,
         AssignedValue,
         QuantumCell::{Constant, Existing, Witness},
     };
@@ -154,8 +154,8 @@ mod halo2_lib {
     };
     use std::ops::Deref;
 
-    type AssignedInteger<'v, C> = CRTInteger<'v, <C as CurveAffine>::ScalarExt>;
-    type AssignedEcPoint<'v, C> = EcPoint<<C as CurveAffine>::ScalarExt, AssignedInteger<'v, C>>;
+    type AssignedInteger<C> = CRTInteger<<C as CurveAffine>::ScalarExt>;
+    type AssignedEcPoint<C> = EcPoint<<C as CurveAffine>::ScalarExt, AssignedInteger<C>>;
 
     impl<'a, F: PrimeField> Context for halo2_base::Context<'a, F> {
         fn constrain_equal(&mut self, lhs: Cell, rhs: Cell) -> Result<(), Error> {
@@ -173,8 +173,8 @@ mod halo2_lib {
 
     impl<'a, F: PrimeField> IntegerInstructions<'a, F> for FlexGateConfig<F> {
         type Context = halo2_base::Context<'a, F>;
-        type AssignedCell = AssignedValue<'a, F>;
-        type AssignedInteger = AssignedValue<'a, F>;
+        type AssignedCell = AssignedValue<F>;
+        type AssignedInteger = AssignedValue<F>;
 
         fn assign_integer(
             &self,
@@ -204,7 +204,7 @@ mod halo2_lib {
                 a.push(Constant(constant));
                 b.push(Constant(F::one()));
             }
-            a.extend(values.iter().map(|(_, a)| Existing(a)));
+            a.extend(values.iter().map(|(_, a)| Existing(a.deref().clone())));
             b.extend(values.iter().map(|(c, _)| Constant(*c)));
             Ok(self.inner_product(ctx, a, b))
         }
@@ -223,7 +223,7 @@ mod halo2_lib {
                 0 => self.assign_constant(ctx, constant),
                 _ => Ok(self.sum_products_with_coeff_and_var(
                     ctx,
-                    values.iter().map(|(c, a, b)| (*c, Existing(a), Existing(b))),
+                    values.iter().map(|(c, a, b)| (*c, Existing(a.deref().clone()), Existing(b.deref().clone()))),
                     Constant(constant),
                 )),
             }
@@ -235,7 +235,7 @@ mod halo2_lib {
             a: &Self::AssignedInteger,
             b: &Self::AssignedInteger,
         ) -> Result<Self::AssignedInteger, Error> {
-            Ok(GateInstructions::sub(self, ctx, Existing(a), Existing(b)))
+            Ok(GateInstructions::sub(self, ctx, Existing(a.clone()), Existing(b.clone())))
         }
 
         fn neg(
@@ -243,7 +243,7 @@ mod halo2_lib {
             ctx: &mut Self::Context,
             a: &Self::AssignedInteger,
         ) -> Result<Self::AssignedInteger, Error> {
-            Ok(GateInstructions::neg(self, ctx, Existing(a)))
+            Ok(GateInstructions::neg(self, ctx, Existing(a.clone())))
         }
 
         fn invert(
@@ -254,7 +254,7 @@ mod halo2_lib {
             // make sure scalar != 0
             let is_zero = self.is_zero(ctx, a);
             self.assert_is_const(ctx, &is_zero, F::zero());
-            Ok(GateInstructions::div_unsafe(self, ctx, Constant(F::one()), Existing(a)))
+            Ok(GateInstructions::div_unsafe(self, ctx, Constant(F::one()), Existing(a.clone())))
         }
 
         fn assert_equal(
@@ -274,9 +274,9 @@ mod halo2_lib {
     {
         type Context = halo2_base::Context<'a, C::Scalar>;
         type ScalarChip = FlexGateConfig<C::Scalar>;
-        type AssignedCell = AssignedValue<'a, C::Scalar>;
-        type AssignedScalar = AssignedValue<'a, C::Scalar>;
-        type AssignedEcPoint = AssignedEcPoint<'a, C>;
+        type AssignedCell = AssignedValue<C::Scalar>;
+        type AssignedScalar = AssignedValue<C::Scalar>;
+        type AssignedEcPoint = AssignedEcPoint<C>;
 
         fn scalar_chip(&self) -> &Self::ScalarChip {
             self.field_chip.range().gate()
@@ -323,7 +323,11 @@ mod halo2_lib {
                 let constant = EccInstructions::<C>::assign_constant(self, ctx, constant).unwrap();
                 Some(constant)
             };
-            Ok(self.sum::<C>(ctx, constant.iter().chain(values.iter().map(Deref::deref))))
+            let tmp = values.iter().map(
+                |x|x.deref().clone()
+            ).collect::<Vec<_>>();
+            let tmp = constant.iter().chain(tmp.iter());
+            Ok(self.sum::<C>(ctx, tmp.cloned()))
         }
 
         fn variable_base_msm(

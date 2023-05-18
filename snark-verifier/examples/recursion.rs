@@ -370,8 +370,8 @@ mod recursion {
         svk: &Svk,
         loader: &Rc<Halo2Loader<'a>>,
         snark: &SnarkWitness,
-        preprocessed_digest: Option<AssignedValue<'a, Fr>>,
-    ) -> (Vec<Vec<AssignedValue<'a, Fr>>>, Vec<KzgAccumulator<G1Affine, Rc<Halo2Loader<'a>>>>) {
+        preprocessed_digest: Option<AssignedValue<Fr>>,
+    ) -> (Vec<Vec<AssignedValue<Fr>>>, Vec<KzgAccumulator<G1Affine, Rc<Halo2Loader<'a>>>>) {
         let protocol = if let Some(preprocessed_digest) = preprocessed_digest {
             let preprocessed_digest = loader.scalar_from_assigned(preprocessed_digest);
             let protocol = snark.protocol.loaded_preprocessed_as_witness(loader);
@@ -415,7 +415,7 @@ mod recursion {
 
     fn select_accumulator<'a>(
         loader: &Rc<Halo2Loader<'a>>,
-        condition: &AssignedValue<'a, Fr>,
+        condition: &AssignedValue<Fr>,
         lhs: &KzgAccumulator<G1Affine, Rc<Halo2Loader<'a>>>,
         rhs: &KzgAccumulator<G1Affine, Rc<Halo2Loader<'a>>>,
     ) -> Result<KzgAccumulator<G1Affine, Rc<Halo2Loader<'a>>>, Error> {
@@ -674,7 +674,7 @@ mod recursion {
                         main_gate.assign_integer(&mut ctx, Value::known(instance)).unwrap()
                     });
                     let first_round = main_gate.is_zero(&mut ctx, &round);
-                    let not_first_round = main_gate.not(&mut ctx, Existing(&first_round));
+                    let not_first_round = main_gate.not(&mut ctx, Existing(first_round));
 
                     let loader = Halo2Loader::new(config.ecc_chip(), ctx);
                     let (mut app_instances, app_accumulators) =
@@ -716,8 +716,8 @@ mod recursion {
                         (
                             &main_gate.mul(
                                 &mut ctx,
-                                Existing(&preprocessed_digest),
-                                Existing(&not_first_round),
+                                Existing(preprocessed_digest),
+                                Existing(not_first_round),
                             ),
                             &previous_instances[Self::PREPROCESSED_DIGEST_ROW],
                         ),
@@ -725,8 +725,8 @@ mod recursion {
                         (
                             &main_gate.mul(
                                 &mut ctx,
-                                Existing(&initial_state),
-                                Existing(&not_first_round),
+                                Existing(initial_state),
+                                Existing(not_first_round),
                             ),
                             &previous_instances[Self::INITIAL_STATE_ROW],
                         ),
@@ -734,13 +734,13 @@ mod recursion {
                         (
                             &main_gate.mul(
                                 &mut ctx,
-                                Existing(&initial_state),
-                                Existing(&first_round),
+                                Existing(initial_state),
+                                Existing(first_round),
                             ),
                             &main_gate.mul(
                                 &mut ctx,
-                                Existing(&app_instances[0]),
-                                Existing(&first_round),
+                                Existing(app_instances[0]),
+                                Existing(first_round),
                             ),
                         ),
                         // Verify current state is same as the current application snark
@@ -749,8 +749,8 @@ mod recursion {
                         (
                             &main_gate.mul(
                                 &mut ctx,
-                                Existing(&app_instances[0]),
-                                Existing(&not_first_round),
+                                Existing(app_instances[0]),
+                                Existing(not_first_round),
                             ),
                             &previous_instances[Self::STATE_ROW],
                         ),
@@ -759,8 +759,8 @@ mod recursion {
                             &round,
                             &main_gate.add(
                                 &mut ctx,
-                                Existing(&not_first_round),
-                                Existing(&previous_instances[Self::ROUND_ROW]),
+                                Existing(not_first_round),
+                                Existing(previous_instances[Self::ROUND_ROW]),
                             ),
                         ),
                     ] {

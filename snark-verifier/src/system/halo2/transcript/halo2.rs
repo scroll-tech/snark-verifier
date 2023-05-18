@@ -405,7 +405,7 @@ where
 mod halo2_lib {
     use crate::halo2_curves::CurveAffineExt;
     use crate::system::halo2::transcript::halo2::NativeEncoding;
-    use halo2_base::utils::PrimeField;
+    use halo2_base::utils::BigPrimeField as PrimeField;
     use halo2_ecc::ecc::BaseFieldEccChip;
 
     impl<'a, C: CurveAffineExt> NativeEncoding<'a, C> for BaseFieldEccChip<C>
