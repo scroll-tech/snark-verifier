@@ -40,12 +40,6 @@ criterion-macro = "0.4"
 crossterm = { version = "0.25" }
 tui = { version = "0.19", default-features = false, features = ["crossterm"] }
 
-# zkevm benchmarks
-zkevm-circuits = { git = "https://github.com/scroll-tech/zkevm-circuits.git", branch = "halo2-ecc-snark-verifier-0323", default-features=false, features = ["test"] }
-bus-mapping = { git = "https://github.com/scroll-tech/zkevm-circuits.git", branch = "halo2-ecc-snark-verifier-0323" }
-eth-types = { git = "https://github.com/scroll-tech/zkevm-circuits.git", branch = "halo2-ecc-snark-verifier-0323" }
-mock = { git = "https://github.com/scroll-tech/zkevm-circuits.git", branch = "halo2-ecc-snark-verifier-0323" }
-
 [features]
 default = ["loader_halo2", "loader_evm", "halo2-pse"]
 display = ["snark-verifier/display", "dep:ark-std"]
