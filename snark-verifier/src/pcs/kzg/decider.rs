@@ -1,14 +1,18 @@
 use crate::util::arithmetic::MultiMillerLoop;
 use std::marker::PhantomData;
 
+/// KZG deciding key.
 #[derive(Debug, Clone, Copy)]
 pub struct KzgDecidingKey<M: MultiMillerLoop> {
+    /// Generator on G2.
     pub g2: M::G2Affine,
+    /// Generator to the trusted-setup secret on G2.
     pub s_g2: M::G2Affine,
     _marker: PhantomData<M>,
 }
 
 impl<M: MultiMillerLoop> KzgDecidingKey<M> {
+    /// Initialize a [`KzgDecidingKey`]
     pub fn new(g2: M::G2Affine, s_g2: M::G2Affine) -> Self {
         Self {
             g2,

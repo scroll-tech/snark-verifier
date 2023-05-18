@@ -14,6 +14,8 @@ use crate::{
 use rand::Rng;
 use std::marker::PhantomData;
 
+/// KZG accumulation scheme. The second generic `MOS` stands for different kind
+/// of multi-open scheme.
 #[derive(Clone, Debug)]
 pub struct KzgAs<PCS>(PhantomData<PCS>);
 
@@ -62,32 +64,39 @@ where
     }
 }
 
+/// KZG accumulation scheme proving key.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct KzgAsProvingKey<C>(pub Option<(C, C)>);
 
 impl<C: Clone> KzgAsProvingKey<C> {
+    /// Initialize a [`KzgAsProvingKey`].
     pub fn new(g: Option<(C, C)>) -> Self {
         Self(g)
     }
 
+    /// Returns if it supports zero-knowledge or not.
     pub fn zk(&self) -> bool {
         self.0.is_some()
     }
 
+    /// Returns [`KzgAsVerifyingKey`].
     pub fn vk(&self) -> KzgAsVerifyingKey {
         KzgAsVerifyingKey(self.zk())
     }
 }
 
+/// KZG accumulation scheme verifying key.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct KzgAsVerifyingKey(bool);
 
 impl KzgAsVerifyingKey {
+    /// Returns if it supports zero-knowledge or not.
     pub fn zk(&self) -> bool {
         self.0
     }
 }
 
+/// KZG accumulation scheme proof.
 #[derive(Clone, Debug)]
 pub struct KzgAsProof<C, L, PCS>
 where
@@ -117,8 +126,8 @@ where
         assert!(!instances.is_empty());
 
         for accumulator in instances {
-            transcript.common_ec_point(&accumulator.lhs).unwrap();
-            transcript.common_ec_point(&accumulator.rhs).unwrap();
+            transcript.common_ec_point(&accumulator.lhs)?;
+            transcript.common_ec_point(&accumulator.rhs)?;
         }
 
         let blind = vk

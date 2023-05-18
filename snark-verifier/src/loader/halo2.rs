@@ -1,3 +1,4 @@
+//! `Loader` implementation for generating verifier in [`halo2_proofs`] circuit.
 use crate::halo2_proofs::circuit;
 use crate::{util::arithmetic::CurveAffine, Protocol};
 use std::rc::Rc;
@@ -17,7 +18,10 @@ pub use halo2_ecc;
 mod util {
     use crate::halo2_proofs::circuit::Value;
 
+    /// Helper methods when dealing with iterator of [`Value`].
     pub trait Valuetools<V>: Iterator<Item = Value<V>> {
+        /// Fold zipped values into accumulator, returns `Value::unknown()` if
+        /// any is `Value::unknown()`.
         fn fold_zipped<B, F>(self, init: B, mut f: F) -> Value<B>
         where
             Self: Sized,

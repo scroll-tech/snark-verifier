@@ -17,6 +17,9 @@ use std::{
     marker::PhantomData,
 };
 
+/// Verifier of multi-open KZG. It is for the SHPLONK implementation
+/// in [`halo2_proofs`].
+/// Notations are following <https://eprint.iacr.org/2020/081>.
 #[derive(Clone, Debug)]
 pub struct Bdfg21;
 
@@ -70,6 +73,7 @@ where
     }
 }
 
+/// Structured proof of [`Bdfg21`].
 #[derive(Clone, Debug)]
 pub struct Bdfg21Proof<C, L>
 where

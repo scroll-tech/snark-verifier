@@ -1,3 +1,5 @@
+
+/// Inner product argument deciding key.
 #[derive(Clone, Debug)]
 pub struct IpaDecidingKey<C> {
     pub g: Vec<C>,

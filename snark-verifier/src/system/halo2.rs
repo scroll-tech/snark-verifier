@@ -1,3 +1,4 @@
+//! [`halo2_proofs`] proof system
 use crate::halo2_proofs::{
     plonk::{self, Any, ConstraintSystem, FirstPhase, SecondPhase, ThirdPhase, VerifyingKey},
     poly::{self, commitment::Params},
@@ -16,52 +17,60 @@ use crate::{
 use num_integer::Integer;
 use std::{io, iter, mem::size_of};
 
-// pub mod strategy;
 pub mod transcript;
 
 #[cfg(test)]
 #[cfg(feature = "loader_halo2")]
 pub(crate) mod test;
 
+/// Configuration for converting a [`VerifyingKey`] of [`halo2_proofs`] into
+/// [`PlonkProtocol`].
 #[derive(Clone, Debug, Default)]
 pub struct Config {
-    pub zk: bool,
-    pub query_instance: bool,
-    pub num_proof: usize,
-    pub num_instance: Vec<usize>,
-    pub accumulator_indices: Option<Vec<(usize, usize)>>,
+    zk: bool,
+    query_instance: bool,
+    num_proof: usize,
+    num_instance: Vec<usize>,
+    accumulator_indices: Option<Vec<(usize, usize)>>,
 }
 
 impl Config {
+    /// Returns [`Config`] with `query_instance` set to `false`.
     pub fn kzg() -> Self {
         Self { zk: true, query_instance: false, num_proof: 1, ..Default::default() }
     }
 
+    /// Returns [`Config`] with `query_instance` set to `true`.
     pub fn ipa() -> Self {
         Self { zk: true, query_instance: true, num_proof: 1, ..Default::default() }
     }
 
+    /// Set `zk`
     pub fn set_zk(mut self, zk: bool) -> Self {
         self.zk = zk;
         self
     }
 
+    /// Set `query_instance`
     pub fn set_query_instance(mut self, query_instance: bool) -> Self {
         self.query_instance = query_instance;
         self
     }
 
+    /// Set `num_proof`
     pub fn with_num_proof(mut self, num_proof: usize) -> Self {
         assert!(num_proof > 0);
         self.num_proof = num_proof;
         self
     }
 
+    /// Set `num_instance`
     pub fn with_num_instance(mut self, num_instance: Vec<usize>) -> Self {
         self.num_instance = num_instance;
         self
     }
 
+    /// Set `accumulator_indices`
     pub fn with_accumulator_indices(
         mut self,
         accumulator_indices: Option<Vec<(usize, usize)>>,
@@ -71,6 +80,7 @@ impl Config {
     }
 }
 
+/// Convert a [`VerifyingKey`] of [`halo2_proofs`] into [`PlonkProtocol`].
 pub fn compile<'a, C: CurveAffine, P: Params<'a, C>>(
     params: &P,
     vk: &VerifyingKey<C>,

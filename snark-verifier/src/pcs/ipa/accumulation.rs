@@ -18,6 +18,8 @@ use crate::{
 use rand::Rng;
 use std::{array, iter, marker::PhantomData};
 
+/// Inner product argument accumulation scheme. The second generic `MOS` stands
+/// for different kind of multi-open scheme.
 #[derive(Clone, Debug)]
 pub struct IpaAs<PCS>(PhantomData<PCS>);
 
@@ -70,6 +72,7 @@ where
     }
 }
 
+/// Inner product argument accumulation scheme proof.
 #[derive(Clone, Debug)]
 pub struct IpaAsProof<C, L, PCS>
 where

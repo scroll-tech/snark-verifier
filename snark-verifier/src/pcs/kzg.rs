@@ -1,3 +1,5 @@
+//! [KZG](<https://www.iacr.org/archive/asiacrypt2010/6477178/6477178.pdf>)
+//! polynomial commitment scheme and accumulation scheme.
 use crate::{
     loader::Loader,
     pcs::PolynomialCommitmentScheme,
@@ -30,12 +32,16 @@ where
     type Accumulator = KzgAccumulator<M::G1Affine, L>;
 }
 
+
+/// KZG succinct verifying key.
 #[derive(Clone, Copy, Debug)]
 pub struct KzgSuccinctVerifyingKey<C: CurveAffine> {
+    /// Generator.
     pub g: C,
 }
 
 impl<C: CurveAffine> KzgSuccinctVerifyingKey<C> {
+    /// Initialize a [`KzgSuccinctVerifyingKey`].
     pub fn new(g: C) -> Self {
         Self { g }
     }

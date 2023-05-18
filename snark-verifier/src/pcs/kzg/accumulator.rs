@@ -1,13 +1,16 @@
 use crate::{loader::Loader, util::arithmetic::CurveAffine};
 use std::fmt::Debug;
 
+/// KZG accumulator, containing lhs G1 and rhs G1 of pairing.
 #[derive(Clone, Debug)]
 pub struct KzgAccumulator<C, L>
 where
     C: CurveAffine,
     L: Loader<C>,
 {
+    /// Left-hand side G1 of pairing.
     pub lhs: L::LoadedEcPoint,
+    /// Right-hand side G1 of pairing.
     pub rhs: L::LoadedEcPoint,
 }
 
@@ -16,6 +19,7 @@ where
     C: CurveAffine,
     L: Loader<C>,
 {
+    /// Initialize a [`KzgAccumulator`].
     pub fn new(lhs: L::LoadedEcPoint, rhs: L::LoadedEcPoint) -> Self {
         Self { lhs, rhs }
     }
@@ -165,15 +169,18 @@ mod halo2 {
         x.zip(y).map(|(x, y)| C::from_xy(x, y).unwrap())
     }
 
+    /// Instructions to encode/decode a elliptic curve point into/from limbs.
     pub trait LimbsEncodingInstructions<'a, C: CurveAffine, const LIMBS: usize, const BITS: usize>:
         EccInstructions<'a, C>
     {
+        /// Decode and assign an elliptic curve point from limbs.
         fn assign_ec_point_from_limbs(
             &self,
             ctx: &mut Self::Context,
             limbs: &[impl Deref<Target = Self::AssignedScalar>],
         ) -> Result<Self::AssignedEcPoint, plonk::Error>;
 
+        /// Encode an elliptic curve point into limbs.
         fn assign_ec_point_to_limbs(
             &self,
             ctx: &mut Self::Context,
@@ -261,52 +268,4 @@ mod halo2 {
             }
         }
     }
-
-    /*
-    mod halo2_wrong {
-        use super::*;
-        use halo2_wrong_ecc::BaseFieldEccChip;
-
-        impl<'a, C: CurveAffine, const LIMBS: usize, const BITS: usize>
-            LimbsEncodingInstructions<'a, C, LIMBS, BITS> for BaseFieldEccChip<C, LIMBS, BITS>
-        {
-            fn assign_ec_point_from_limbs(
-                &self,
-                ctx: &mut Self::Context,
-                limbs: &[impl Deref<Target = Self::AssignedScalar>],
-            ) -> Result<Self::AssignedEcPoint, plonk::Error> {
-                assert_eq!(limbs.len(), 2 * LIMBS);
-
-                let ec_point = self.assign_point(
-                    ctx,
-                    ec_point_from_limbs::<_, LIMBS, BITS>(
-                        &limbs.iter().map(|limb| limb.value()).collect_vec(),
-                    ),
-                )?;
-
-                for (src, dst) in limbs
-                    .iter()
-                    .zip_eq(iter::empty().chain(ec_point.x().limbs()).chain(ec_point.y().limbs()))
-                {
-                    ctx.constrain_equal(src.cell(), dst.as_ref().cell())?;
-                }
-
-                Ok(ec_point)
-            }
-
-            fn assign_ec_point_to_limbs(
-                &self,
-                _: &mut Self::Context,
-                ec_point: impl Deref<Target = Self::AssignedEcPoint>,
-            ) -> Result<Vec<Self::AssignedCell>, plonk::Error> {
-                Ok(iter::empty()
-                    .chain(ec_point.x().limbs())
-                    .chain(ec_point.y().limbs())
-                    .map(|limb| limb.as_ref())
-                    .cloned()
-                    .collect())
-            }
-        }
-    }
-    */
 }

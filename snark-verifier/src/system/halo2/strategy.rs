@@ -1,3 +1,5 @@
+//! Verifier strategy
+
 pub mod ipa {
     use crate::util::arithmetic::CurveAffine;
     use halo2_proofs::{
