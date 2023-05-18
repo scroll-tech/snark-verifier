@@ -66,7 +66,6 @@ where
     where
         T: TranscriptRead<C, L>;
 
-
     /// Verify [`MultiOpenScheme::Proof`] and output [`PolynomialCommitmentScheme::Accumulator`].
     fn succinct_verify(
         svk: &Self::SuccinctVerifyingKey,
@@ -75,27 +74,6 @@ where
         queries: &[Query<C::Scalar, L::LoadedScalar>],
         proof: &Self::Proof,
     ) -> Self::Accumulator;
-}
-
-/// Accumulation scheme decider.
-/// When accumulation is going to end, the decider will perform the check if the
-/// final accumulator is valid or not, where the check is usually much more
-/// expensive than accumulation verification.
-pub trait Decider<C, L>: PolynomialCommitmentScheme<C, L>
-where
-    C: CurveAffine,
-    L: Loader<C>,
-{
-    /// Deciding key. The key for decider for perform the final accumulator
-    /// check.
-    type DecidingKey: Clone + Debug;
-    type Output: Clone + Debug;
-
-    /// Decide if a [`AccumulationScheme::Accumulator`] is valid.
-    fn decide(dk: &Self::DecidingKey, accumulator: Self::Accumulator) -> Self::Output;
-
-    /// Decide if all [`AccumulationScheme::Accumulator`]s are valid.
-    fn decide_all(dk: &Self::DecidingKey, accumulators: Vec<Self::Accumulator>) -> Self::Output;
 }
 
 /// Accumulation scheme verifier.
@@ -127,6 +105,27 @@ where
         instances: &[PCS::Accumulator],
         proof: &Self::Proof,
     ) -> Result<PCS::Accumulator, Error>;
+}
+
+/// Accumulation scheme decider.
+/// When accumulation is going to end, the decider will perform the check if the
+/// final accumulator is valid or not, where the check is usually much more
+/// expensive than accumulation verification.
+pub trait Decider<C, L>: PolynomialCommitmentScheme<C, L>
+where
+    C: CurveAffine,
+    L: Loader<C>,
+{
+    /// Deciding key. The key for decider for perform the final accumulator
+    /// check.
+    type DecidingKey: Clone + Debug;
+    type Output: Clone + Debug;
+
+    /// Decide if a [`AccumulationScheme::Accumulator`] is valid.
+    fn decide(dk: &Self::DecidingKey, accumulator: Self::Accumulator) -> Self::Output;
+
+    /// Decide if all [`AccumulationScheme::Accumulator`]s are valid.
+    fn decide_all(dk: &Self::DecidingKey, accumulators: Vec<Self::Accumulator>) -> Self::Output;
 }
 
 /// Accumulation scheme prover.

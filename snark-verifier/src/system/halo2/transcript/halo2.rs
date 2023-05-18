@@ -167,7 +167,7 @@ where
 
 impl<C: CurveAffine, S, const T: usize, const RATE: usize, const R_F: usize, const R_P: usize>
     PoseidonTranscript<C, NativeLoader, S, T, RATE, R_F, R_P>
-{    
+{
     /// Initialize [`PoseidonTranscript`] given readable or writeable stream for
     /// verifying or proving with [`NativeLoader`].
     pub fn new(stream: S) -> Self {
@@ -440,4 +440,3 @@ mod halo2_lib {
         }
     }
 }
-

@@ -1,10 +1,16 @@
+//! Cost estimation.
 use std::ops::Add;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// Cost of verification.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Cost {
+    /// Number of instances.
     pub num_instance: usize,
+    /// Number of commitments in proof.
     pub num_commitment: usize,
+    /// Number of evaluations in proof.
     pub num_evaluation: usize,
+    /// Number of scalar multiplications to perform.
     pub num_msm: usize,
 }
 
@@ -15,12 +21,7 @@ impl Cost {
         num_evaluation: usize,
         num_msm: usize,
     ) -> Self {
-        Self {
-            num_instance,
-            num_commitment,
-            num_evaluation,
-            num_msm,
-        }
+        Self { num_instance, num_commitment, num_evaluation, num_msm }
     }
 }
 
@@ -37,8 +38,11 @@ impl Add<Cost> for Cost {
     }
 }
 
+/// For estimating cost of a verifier.
 pub trait CostEstimation<T> {
+    /// Input for [`CostEstimation::estimate_cost`].
     type Input;
 
+    /// Estimate cost of verifier given the input.
     fn estimate_cost(input: &Self::Input) -> Cost;
 }

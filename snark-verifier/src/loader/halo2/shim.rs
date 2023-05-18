@@ -248,7 +248,9 @@ mod halo2_lib {
                 0 => self.assign_constant(ctx, constant),
                 _ => Ok(self.sum_products_with_coeff_and_var(
                     ctx,
-                    values.iter().map(|(c, a, b)| (*c, Existing(a.deref().clone()), Existing(b.deref().clone()))),
+                    values.iter().map(|(c, a, b)| {
+                        (*c, Existing(a.deref().clone()), Existing(b.deref().clone()))
+                    }),
                     Constant(constant),
                 )),
             }
@@ -348,9 +350,7 @@ mod halo2_lib {
                 let constant = EccInstructions::<C>::assign_constant(self, ctx, constant).unwrap();
                 Some(constant)
             };
-            let tmp = values.iter().map(
-                |x|x.deref().clone()
-            ).collect::<Vec<_>>();
+            let tmp = values.iter().map(|x| x.deref().clone()).collect::<Vec<_>>();
             let tmp = constant.iter().chain(tmp.iter());
             Ok(self.sum::<C>(ctx, tmp.cloned()))
         }

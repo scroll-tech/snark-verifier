@@ -32,7 +32,6 @@ where
     type Accumulator = KzgAccumulator<M::G1Affine, L>;
 }
 
-
 /// KZG succinct verifying key.
 #[derive(Clone, Copy, Debug)]
 pub struct KzgSuccinctVerifyingKey<C: CurveAffine> {

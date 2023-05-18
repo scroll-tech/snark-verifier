@@ -51,10 +51,7 @@ where
 {
     #[cfg(debug_assertions)]
     {
-        use halo2_base::halo2_proofs::{
-            dev::MockProver,
-            poly::commitment::Params,
-        };
+        use halo2_base::halo2_proofs::{dev::MockProver, poly::commitment::Params};
         MockProver::run(params.k(), &circuit, instances.clone()).unwrap().assert_satisfied();
     }
 

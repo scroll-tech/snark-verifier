@@ -1,3 +1,4 @@
+//! Generic (S)NARK verifier.
 #![allow(clippy::type_complexity)]
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::upper_case_acronyms)]
@@ -21,11 +22,14 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug)]
 pub enum Error {
+    /// Instances that don't match the amount specified in protocol.
     InvalidInstances,
     InvalidLinearization,
     InvalidQuery(util::protocol::Query),
     InvalidChallenge(usize),
+    /// Assertion failure while verification.
     AssertionFailure(String),
+    /// Transcript error.
     Transcript(std::io::ErrorKind, String),
 }
 

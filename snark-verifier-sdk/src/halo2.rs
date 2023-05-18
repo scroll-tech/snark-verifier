@@ -91,7 +91,9 @@ where
     #[cfg(debug_assertions)]
     {
         use halo2_proofs::poly::commitment::Params;
-        halo2_proofs::dev::MockProver::run(params.k(), &circuit, instances.clone()).unwrap().assert_satisfied();
+        halo2_proofs::dev::MockProver::run(params.k(), &circuit, instances.clone())
+            .unwrap()
+            .assert_satisfied();
     }
 
     if let Some((instance_path, proof_path)) = path {

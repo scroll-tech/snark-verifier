@@ -1,5 +1,5 @@
 //! Arithmetic related re-exported traits and utilities.
-//! 
+//!
 use crate::util::Itertools;
 use num_bigint::BigUint;
 use num_traits::One;
@@ -73,7 +73,6 @@ pub fn batch_invert_and_mul<F: PrimeField>(values: &mut [F], coeff: &F) {
     }
 }
 
-
 /// Batch invert [`PrimeField`] elements.
 pub fn batch_invert<F: PrimeField>(values: &mut [F]) {
     batch_invert_and_mul(values, &F::one())
@@ -104,7 +103,7 @@ impl Rotation {
     pub fn cur() -> Self {
         Rotation(0)
     }
-    
+
     /// To previous element
     pub fn prev() -> Self {
         Rotation(-1)
