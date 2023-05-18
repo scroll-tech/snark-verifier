@@ -1,3 +1,4 @@
+//! Transcript for verifier on EVM.
 use crate::halo2_proofs;
 use crate::{
     loader::{
@@ -21,6 +22,8 @@ use std::{
     marker::PhantomData,
     rc::Rc,
 };
+
+/// Transcript for verifier on EVM using keccak256 as hasher.
 pub struct EvmTranscript<C: CurveAffine, L: Loader<C>, S, B> {
     loader: L,
     stream: S,
@@ -33,6 +36,8 @@ where
     C: CurveAffine,
     C::Scalar: PrimeField<Repr = [u8; 0x20]>,
 {
+    /// Initialize [`EvmTranscript`] given [`Rc<EvmLoader>`] and pre-allocate an
+    /// u256 for `transcript_initial_state`.
     pub fn new(loader: &Rc<EvmLoader>) -> Self {
         let ptr = loader.allocate(0x20);
         assert_eq!(ptr, 0);
@@ -41,6 +46,7 @@ where
         Self { loader: loader.clone(), stream: 0, buf, _marker: PhantomData }
     }
 
+    /// Load `num_instance` instances from calldata to memory.
     pub fn load_instances(&mut self, num_instance: Vec<usize>) -> Vec<Vec<Scalar>> {
         num_instance
             .into_iter()
@@ -144,6 +150,8 @@ impl<C, S> EvmTranscript<C, NativeLoader, S, Vec<u8>>
 where
     C: CurveAffine,
 {
+    /// Initialize [`EvmTranscript`] given readable or writeable stream for
+    /// verifying or proving with [`NativeLoader`].
     pub fn new(stream: S) -> Self {
         Self { loader: NativeLoader, stream, buf: Vec::new(), _marker: PhantomData }
     }
@@ -239,15 +247,20 @@ where
     C: CurveAffine,
     S: Write,
 {
+    /// Returns mutable `stream`.
     pub fn stream_mut(&mut self) -> &mut S {
         &mut self.stream
     }
 
+    /// Finalize transcript and returns `stream`.
     pub fn finalize(self) -> S {
         self.stream
     }
 }
 
+/// [`EncodedChallenge`] implemented for verifier on EVM, which use input in
+/// big-endian as the challenge.
+#[derive(Debug)]
 pub struct ChallengeEvm<C>(C::Scalar)
 where
     C: CurveAffine,

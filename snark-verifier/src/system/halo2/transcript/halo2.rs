@@ -1,3 +1,4 @@
+//! Transcript for verifier in [`halo2_proofs`] circuit.
 use crate::halo2_proofs;
 use crate::{
     loader::{
@@ -31,6 +32,9 @@ where
     ) -> Result<Vec<Self::AssignedScalar>, Error>;
 }
 
+/// Transcript for verifier in [`halo2_proofs`] circuit using poseidon hasher.
+/// Currently It assumes the elliptic curve scalar field is same as native
+/// field.
 pub struct PoseidonTranscript<
     C,
     L,
@@ -55,11 +59,14 @@ where
     R: Read,
     EccChip: NativeEncoding<'a, C>,
 {
+    /// Initialize [`PoseidonTranscript`] given readable or writeable stream for
+    /// verifying or proving with [`NativeLoader`].
     pub fn new(loader: &Rc<Halo2Loader<'a, C, EccChip>>, stream: Value<R>) -> Self {
         let buf = Poseidon::new(loader, R_F, R_P);
         Self { loader: loader.clone(), stream, buf }
     }
 
+    /// Initialize [`PoseidonTranscript`] from a precomputed spec of round constants and MDS matrix because computing the constants is expensive.
     pub fn from_spec(
         loader: &Rc<Halo2Loader<'a, C, EccChip>>,
         stream: Value<R>,
@@ -69,6 +76,7 @@ where
         Self { loader: loader.clone(), stream, buf }
     }
 
+    /// Clear the buffer and set the stream to a new one. Effectively the same as starting from a new transcript.
     pub fn new_stream(&mut self, stream: Value<R>) {
         self.buf.clear();
         self.stream = stream;
@@ -159,15 +167,19 @@ where
 
 impl<C: CurveAffine, S, const T: usize, const RATE: usize, const R_F: usize, const R_P: usize>
     PoseidonTranscript<C, NativeLoader, S, T, RATE, R_F, R_P>
-{
+{    
+    /// Initialize [`PoseidonTranscript`] given readable or writeable stream for
+    /// verifying or proving with [`NativeLoader`].
     pub fn new(stream: S) -> Self {
         Self { loader: NativeLoader, stream, buf: Poseidon::new(&NativeLoader, R_F, R_P) }
     }
 
+    /// Initialize [`PoseidonTranscript`] from a precomputed spec of round constants and MDS matrix because computing the constants is expensive.
     pub fn from_spec(stream: S, spec: crate::poseidon::Spec<C::Scalar, T, RATE>) -> Self {
         Self { loader: NativeLoader, stream, buf: Poseidon::from_spec(&NativeLoader, spec) }
     }
 
+    /// Clear the buffer and set the stream to a new one. Effectively the same as starting from a new transcript.
     pub fn new_stream(&mut self, stream: S) {
         self.buf.clear();
         self.stream = stream;
@@ -177,6 +189,7 @@ impl<C: CurveAffine, S, const T: usize, const RATE: usize, const R_F: usize, con
 impl<C: CurveAffine, const T: usize, const RATE: usize, const R_F: usize, const R_P: usize>
     PoseidonTranscript<C, NativeLoader, Vec<u8>, T, RATE, R_F, R_P>
 {
+    /// Clear the buffer and stream.
     pub fn clear(&mut self) {
         self.buf.clear();
         self.stream.clear();
@@ -254,10 +267,12 @@ where
     C: CurveAffine,
     W: Write,
 {
+    /// Returns mutable `stream`.
     pub fn stream_mut(&mut self) -> &mut W {
         &mut self.stream
     }
 
+    /// Finalize transcript and returns `stream`.
     pub fn finalize(self) -> W {
         self.stream
     }
@@ -289,6 +304,9 @@ where
     }
 }
 
+/// [`EncodedChallenge`] implemented for verifier in [`halo2_proofs`] circuit.
+/// Currently It assumes the elliptic curve scalar field is same as native
+/// field.
 pub struct ChallengeScalar<C: CurveAffine>(C::Scalar);
 
 impl<C: CurveAffine> EncodedChallenge<C> for ChallengeScalar<C> {
@@ -423,26 +441,3 @@ mod halo2_lib {
     }
 }
 
-/*
-mod halo2_wrong {
-    use crate::system::halo2::transcript::halo2::NativeEncoding;
-    use halo2_curves::CurveAffine;
-    use halo2_proofs::circuit::AssignedCell;
-    use halo2_wrong_ecc::BaseFieldEccChip;
-
-    impl<'a, C: CurveAffine, const LIMBS: usize, const BITS: usize> NativeEncoding<'a, C>
-        for BaseFieldEccChip<C, LIMBS, BITS>
-    {
-        fn encode(
-            &self,
-            _: &mut Self::Context,
-            ec_point: &Self::AssignedEcPoint,
-        ) -> Result<Vec<AssignedCell<C::Scalar, C::Scalar>>, crate::Error> {
-            Ok(vec![
-                ec_point.x().native().clone(),
-                ec_point.y().native().clone(),
-            ])
-        }
-    }
-}
-*/
