@@ -1,6 +1,6 @@
 use super::TestCircuit1;
 use crate::evm::{evm_verify, gen_evm_proof_shplonk, gen_evm_verifier};
-use crate::halo2::aggregation::AggregationCircuit;
+use crate::halo2::circuit::AggregationCircuit;
 use crate::CircuitExt;
 use crate::{gen_pk, halo2::gen_snark_shplonk};
 use ark_std::test_rng;

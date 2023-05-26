@@ -1,4 +1,5 @@
-use super::{CircuitExt, Plonk};
+use crate::{circuit_ext::CircuitExt, types::Plonk};
+
 #[cfg(feature = "display")]
 use ark_std::{end_timer, start_timer};
 use ethereum_types::Address;

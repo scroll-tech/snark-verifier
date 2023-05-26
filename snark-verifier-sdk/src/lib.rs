@@ -30,11 +30,12 @@ pub mod halo2;
 #[cfg(test)]
 mod tests;
 
-pub const LIMBS: usize = 3;
-pub const BITS: usize = 88;
+pub mod circuit_ext;
+mod param;
+pub mod types;
 
-/// PCS be either `Kzg<Bn256, Gwc19>` or `Kzg<Bn256, Bdfg21>`
-pub type Plonk<PCS> = verifier::Plonk<PCS, LimbsEncoding<LIMBS, BITS>>;
+pub use circuit_ext::CircuitExt;
+pub use param::{BITS, LIMBS};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Snark {
@@ -85,27 +86,6 @@ impl SnarkWitness {
 
     pub fn proof(&self) -> Value<&[u8]> {
         self.proof.as_ref().map(Vec::as_slice)
-    }
-}
-
-pub trait CircuitExt<F: Field>: Circuit<F> {
-    /// Return the number of instances of the circuit.
-    /// This may depend on extra circuit parameters but NOT on private witnesses.
-    fn num_instance(&self) -> Vec<usize> {
-        vec![]
-    }
-
-    fn instances(&self) -> Vec<Vec<F>> {
-        vec![]
-    }
-
-    fn accumulator_indices() -> Option<Vec<(usize, usize)>> {
-        None
-    }
-
-    /// Output the simple selector columns (before selector compression) of the circuit
-    fn selectors(_: &Self::Config) -> Vec<Selector> {
-        vec![]
     }
 }
 

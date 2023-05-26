@@ -1,4 +1,9 @@
-use super::{read_instances, write_instances, CircuitExt, Snark, SnarkWitness};
+use crate::{
+    circuit_ext::CircuitExt,
+    types::{PoseidonTranscript, POSEIDON_SPEC},
+};
+
+use super::{read_instances, write_instances, Snark, SnarkWitness};
 #[cfg(feature = "display")]
 use ark_std::{end_timer, start_timer};
 use halo2_base::halo2_proofs::{
@@ -44,27 +49,8 @@ use std::{
 };
 
 pub mod aggregation;
-
-// Poseidon parameters
-const T: usize = 5;
-const RATE: usize = 4;
-const R_F: usize = 8;
-const R_P: usize = 60;
-
-pub type PoseidonTranscript<L, S> =
-    snark_verifier::system::halo2::transcript::halo2::PoseidonTranscript<
-        G1Affine,
-        L,
-        S,
-        T,
-        RATE,
-        R_F,
-        R_P,
-    >;
-
-lazy_static! {
-    pub static ref POSEIDON_SPEC: PoseidonSpec<Fr, T, RATE> = PoseidonSpec::new(R_F, R_P);
-}
+pub mod circuit;
+pub mod config;
 
 /// Generates a native proof using either SHPLONK or GWC proving method. Uses Poseidon for Fiat-Shamir.
 ///
