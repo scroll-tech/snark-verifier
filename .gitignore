@@ -4,6 +4,7 @@
 /target
 testdata
 
+.gitignore
 Cargo.lock
 
 # local files

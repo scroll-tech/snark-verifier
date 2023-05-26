@@ -1,7 +1,9 @@
 use super::{read_instances, write_instances, CircuitExt, PlonkSuccinctVerifier, Snark};
 #[cfg(feature = "display")]
 use ark_std::{end_timer, start_timer};
-use halo2_base::halo2_proofs;
+use halo2_base::halo2_proofs::{
+    self, poly::kzg::strategy::SingleStrategy, transcript::TranscriptReadBuffer,
+};
 use halo2_proofs::{
     circuit::Layouter,
     halo2curves::{
@@ -39,7 +41,7 @@ use snark_verifier::{
     verifier::plonk::PlonkProof,
 };
 use std::{
-    fs::{self, File},
+    fs::{self},
     marker::PhantomData,
     path::Path,
 };
@@ -92,6 +94,14 @@ where
         MSMAccumulator = DualMSM<'params, Bn256>,
     >,
 {
+    #[cfg(debug_assertions)]
+    {
+        use halo2_proofs::poly::commitment::Params;
+        halo2_proofs::dev::MockProver::run(params.k(), &circuit, instances.clone())
+            .unwrap()
+            .assert_satisfied();
+    }
+
     if let Some((instance_path, proof_path)) = path {
         let cached_instances = read_instances(instance_path);
         if matches!(cached_instances, Ok(tmp) if tmp == instances) && proof_path.exists() {
@@ -190,13 +200,13 @@ where
         MSMAccumulator = DualMSM<'params, Bn256>,
     >,
 {
-    if let Some(path) = &path {
+    if let Some(_path) = &path {
         #[cfg(feature = "halo2-axiom")]
-        if let Ok(snark) = read_snark(path) {
+        if let Ok(snark) = read_snark(_path) {
             return snark;
         }
         #[cfg(not(feature = "halo2-axiom"))]
-        unimplemented!("Reading SNARKs is not supported in halo2-pse because we cannot derive Serialize/Deserialize for halo2curves field elements.");
+        unimplemented!("Reading SNARKs is not supported in halo2-scroll because we cannot derive Serialize/Deserialize for halo2curves field elements.");
     }
     let protocol = compile(
         params,
@@ -246,6 +256,64 @@ pub fn gen_snark_shplonk<ConcreteCircuit: CircuitExt<Fr>>(
     path: Option<impl AsRef<Path>>,
 ) -> Snark {
     gen_snark::<ConcreteCircuit, ProverSHPLONK<_>, VerifierSHPLONK<_>>(params, pk, circuit, path)
+}
+
+/// Verifies a native proof using either SHPLONK or GWC proving method. Uses Poseidon for Fiat-Shamir.
+///
+pub fn verify_snark<'params, ConcreteCircuit, V>(
+    verifier_params: &'params ParamsKZG<Bn256>,
+    snark: Snark,
+    vk: &VerifyingKey<G1Affine>,
+) -> bool
+where
+    ConcreteCircuit: CircuitExt<Fr>,
+    V: Verifier<
+        'params,
+        KZGCommitmentScheme<Bn256>,
+        Guard = GuardKZG<'params, Bn256>,
+        MSMAccumulator = DualMSM<'params, Bn256>,
+    >,
+{
+    let mut transcript: PoseidonTranscript<_, _> =
+        TranscriptReadBuffer::<_, G1Affine, _>::init(snark.proof.as_slice());
+    let strategy = SingleStrategy::new(verifier_params);
+    let instance_slice = snark.instances.iter().map(|x| &x[..]).collect::<Vec<_>>();
+    match verify_proof::<_, V, _, _, _>(
+        verifier_params,
+        vk,
+        strategy,
+        &[instance_slice.as_slice()],
+        &mut transcript,
+    ) {
+        Ok(_p) => true,
+        Err(_e) => false,
+    }
+}
+
+/// Verifies a native proof using SHPLONK proving method. Uses Poseidon for Fiat-Shamir.
+///
+pub fn verify_snark_shplonk<ConcreteCircuit>(
+    verifier_params: &ParamsKZG<Bn256>,
+    snark: Snark,
+    vk: &VerifyingKey<G1Affine>,
+) -> bool
+where
+    ConcreteCircuit: CircuitExt<Fr>,
+{
+    verify_snark::<ConcreteCircuit, VerifierSHPLONK<_>>(verifier_params, snark, vk)
+}
+
+/// Verifies a native proof using GWC proving method. Uses Poseidon for Fiat-Shamir.
+///
+pub fn verify_snark_gwc<ConcreteCircuit>(
+    verifier_params: &ParamsKZG<Bn256>,
+    snark: Snark,
+    vk: &VerifyingKey<G1Affine>,
+) -> bool
+where
+    ConcreteCircuit: CircuitExt<Fr>,
+{
+    verify_snark::<ConcreteCircuit, VerifierGWC<_>>(verifier_params, snark, vk)
 }
 
 /// Tries to deserialize a SNARK from the specified `path` using `bincode`.

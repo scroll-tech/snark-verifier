@@ -519,7 +519,7 @@ mod aggregation {
                     let (cell, _) = assigned_advices
                         .get(&(cell.context_id, cell.offset))
                         .expect("instance not assigned");
-                    layouter.constrain_instance(*cell, config.instance, i);
+                    layouter.constrain_instance(*cell, config.instance, i)?;
                 }
             }
             Ok(())

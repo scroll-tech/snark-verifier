@@ -50,6 +50,12 @@ where
         MSMAccumulator = DualMSM<'params, Bn256>,
     >,
 {
+    #[cfg(debug_assertions)]
+    {
+        use halo2_base::halo2_proofs::{dev::MockProver, poly::commitment::Params};
+        MockProver::run(params.k(), &circuit, instances.clone()).unwrap().assert_satisfied();
+    }
+
     let instances = instances.iter().map(|instances| instances.as_slice()).collect_vec();
 
     #[cfg(feature = "display")]
@@ -184,7 +190,7 @@ pub fn evm_verify(deployment_code: Vec<u8>, instances: Vec<Vec<Fr>>, proof: Vec<
         let verifier = evm.deploy(caller, deployment_code.into(), 0.into()).address.unwrap();
         let result = evm.call_raw(caller, verifier, calldata.into(), 0.into());
 
-        dbg!(result.gas_used);
+        log::info!("gas used: {}", result.gas_used);
 
         !result.reverted
     };

@@ -13,7 +13,6 @@ use halo2_proofs::{
     SerdeFormat,
 };
 use itertools::Itertools;
-use serde::{Deserialize, Serialize};
 pub use snark_verifier::loader::native::NativeLoader;
 use snark_verifier::{
     pcs::kzg::{Bdfg21, Gwc19, KzgAs, LimbsEncoding},
@@ -29,6 +28,11 @@ use std::{
 pub mod evm;
 #[cfg(feature = "loader_halo2")]
 pub mod halo2;
+
+// mod evm_circuits;
+
+#[cfg(test)]
+mod tests;
 
 pub const LIMBS: usize = 3;
 pub const BITS: usize = 88;
@@ -62,9 +66,13 @@ impl Snark {
 pub trait CircuitExt<F: Field>: Circuit<F> {
     /// Return the number of instances of the circuit.
     /// This may depend on extra circuit parameters but NOT on private witnesses.
-    fn num_instance(&self) -> Vec<usize>;
+    fn num_instance(&self) -> Vec<usize> {
+        vec![]
+    }
 
-    fn instances(&self) -> Vec<Vec<F>>;
+    fn instances(&self) -> Vec<Vec<F>> {
+        vec![]
+    }
 
     fn accumulator_indices() -> Option<Vec<(usize, usize)>> {
         None
@@ -156,29 +164,4 @@ pub fn write_instances(instances: &[&[Fr]], path: impl AsRef<Path>) {
         .collect_vec();
     let f = BufWriter::new(File::create(path).unwrap());
     bincode::serialize_into(f, &instances).unwrap();
-}
-
-#[cfg(feature = "zkevm")]
-mod zkevm {
-    use super::CircuitExt;
-    use eth_types::Field;
-    use zkevm_circuits::{evm_circuit::EvmCircuit, state_circuit::StateCircuit};
-
-    impl<F: Field> CircuitExt<F> for EvmCircuit<F> {
-        fn instances(&self) -> Vec<Vec<F>> {
-            vec![]
-        }
-        fn num_instance(&self) -> Vec<usize> {
-            vec![]
-        }
-    }
-
-    impl<F: Field> CircuitExt<F> for StateCircuit<F> {
-        fn instances(&self) -> Vec<Vec<F>> {
-            vec![]
-        }
-        fn num_instance(&self) -> Vec<usize> {
-            vec![]
-        }
-    }
 }
