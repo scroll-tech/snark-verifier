@@ -19,6 +19,7 @@ ark-std = { version = "0.3.0", features = ["print-trace"], optional = true }
 
 halo2-base = { git = "https://github.com/scroll-tech/halo2-lib.git", branch = "minimize-diff", default-features=false, features=["halo2-pse","display"] }
 snark-verifier = { path = "../snark-verifier", default-features = false }
+zkevm-circuits = { git = "https://github.com/scroll-tech/zkevm-circuits.git", branch = "develop" }
 
 # loader_evm
 ethereum-types = { version = "0.14", default-features = false, features = ["std"], optional = true }
@@ -49,8 +50,6 @@ parallel = ["snark-verifier/parallel"]
 # EXACTLY one of halo2-pse / halo2-axiom should always be turned on; not sure how to enforce this with Cargo
 halo2-pse = ["snark-verifier/halo2-pse"]
 halo2-axiom = ["snark-verifier/halo2-axiom"]
-
-#zkevm = [ "dep:bus-mapping", "dep:mock" ]
 
 [[bench]]
 name = "standard_plonk"

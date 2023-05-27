@@ -1,14 +1,12 @@
 use std::{
-    fs::{
-        File, self,
-    },
+    fs::{self, File},
     io::BufWriter,
     path::Path,
 };
 
 use crate::{
     circuit_ext::CircuitExt,
-    io::{read_pk, read_snark},
+    file_io::{read_pk, read_snark},
     read_instances,
     types::{PoseidonTranscript, POSEIDON_SPEC},
     write_instances, Snark,

@@ -1,5 +1,5 @@
 use std::{
-    fs::File,
+    fs::{write, File},
     io::{BufReader, BufWriter},
     path::Path,
 };
@@ -10,6 +10,7 @@ use halo2_base::halo2_proofs::{
     SerdeFormat,
 };
 use itertools::Itertools;
+use snark_verifier::loader::evm::encode_calldata;
 
 use crate::Snark;
 
@@ -70,4 +71,12 @@ pub fn read_pk<C: Circuit<Fr>>(path: &Path) -> std::io::Result<ProvingKey<G1Affi
 pub fn read_snark(path: impl AsRef<Path>) -> Result<Snark, bincode::Error> {
     let f = File::open(path).map_err(Box::<bincode::ErrorKind>::from)?;
     bincode::deserialize_from(f)
+}
+
+/// Write the calldata to disk
+pub fn write_calldata(instances: &[Vec<Fr>], proof: &[u8], path: &Path) -> std::io::Result<String> {
+    let calldata = encode_calldata(instances, proof);
+    let calldata = hex::encode(calldata);
+    write(path, &calldata)?;
+    Ok(calldata)
 }

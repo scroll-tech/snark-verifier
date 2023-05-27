@@ -32,7 +32,7 @@ use snark_verifier::{
     system::halo2::{compile, transcript::evm::EvmTranscript, Config},
     verifier::PlonkVerifier,
 };
-use std::{fs, io, path::Path, rc::Rc};
+use std::{fs, path::Path, rc::Rc};
 
 /// Generates a proof for evm verification using either SHPLONK or GWC proving method. Uses Keccak for Fiat-Shamir.
 pub fn gen_evm_proof<'params, C, P, V>(
@@ -193,11 +193,4 @@ pub fn evm_verify(deployment_code: Vec<u8>, instances: Vec<Vec<Fr>>, proof: Vec<
         !result.reverted
     };
     assert!(success);
-}
-
-pub fn write_calldata(instances: &[Vec<Fr>], proof: &[u8], path: &Path) -> io::Result<String> {
-    let calldata = encode_calldata(instances, proof);
-    let calldata = hex::encode(calldata);
-    fs::write(path, &calldata)?;
-    Ok(calldata)
 }
