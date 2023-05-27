@@ -25,7 +25,7 @@ use snark_verifier::{
 };
 use std::{fs::File, rc::Rc};
 
-use self::config::AggregationConfigParams;
+use config::AggregationConfigParams;
 
 pub mod aggregation_circuit;
 pub mod config;

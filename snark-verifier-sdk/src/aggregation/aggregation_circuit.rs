@@ -4,9 +4,7 @@ use halo2_base::{
     halo2_proofs::{
         circuit::{Layouter, SimpleFloorPlanner, Value},
         halo2curves::bn256::{Bn256, Fr},
-        plonk::{
-            Circuit, ConstraintSystem, Selector, {self},
-        },
+        plonk::{self, Circuit, ConstraintSystem, Error, Selector},
         poly::{commitment::ParamsProver, kzg::commitment::ParamsKZG},
     },
     Context, ContextParams,
@@ -18,6 +16,10 @@ use snark_verifier::{
     pcs::{kzg::KzgAccumulator, AccumulationSchemeProver},
     util::arithmetic::fe_to_limbs,
     verifier::PlonkVerifier,
+};
+use zkevm_circuits::{
+    util::{Challenges, SubCircuit},
+    witness::Block,
 };
 
 use crate::{
@@ -159,9 +161,41 @@ impl Circuit<Fr> for AggregationCircuit {
         config: Self::Config,
         mut layouter: impl Layouter<Fr>,
     ) -> Result<(), plonk::Error> {
+        let challenge = Challenges::default();
+        self.synthesize_sub(&config, &challenge, &mut layouter)
+    }
+}
+
+impl SubCircuit<Fr> for AggregationCircuit {
+    type Config = AggregationConfig;
+
+    fn new_from_block(_block: &Block<Fr>) -> Self {
+        // we cannot instantiate a new Self from a single block
+        unimplemented!()
+    }
+
+    /// Return the minimum number of rows required to prove the block
+    /// Row numbers without/with padding are both returned.
+    fn min_num_rows_block(_block: &Block<Fr>) -> (usize, usize) {
+        // there is no min num rows per block for aggregation circuit
+        unimplemented!()
+    }
+
+    /// Compute the public inputs for this circuit.
+    fn instance(&self) -> Vec<Vec<Fr>> {
+        <AggregationCircuit as CircuitExt<Fr>>::instances(&self)
+    }
+
+    /// Make the assignments to the BatchHashCircuit
+    fn synthesize_sub(
+        &self,
+        config: &Self::Config,
+        _challenges: &Challenges<Value<Fr>>,
+        layouter: &mut impl Layouter<Fr>,
+    ) -> Result<(), Error> {
         #[cfg(feature = "display")]
         let witness_time = start_timer!(|| "synthesize | Aggregation Circuit");
-        config.range().load_lookup_table(&mut layouter).expect("load range lookup table");
+        config.range().load_lookup_table(layouter).expect("load range lookup table");
         let mut first_pass = halo2_base::SKIP_FIRST_PASS;
         let mut instances = vec![];
         layouter

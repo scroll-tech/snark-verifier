@@ -38,28 +38,28 @@ pub use evm::{
     encode_calldata,
     // verify instances and proofs with the bytecode
     evm_verify,
-    // generate evm proof in bytes that can be verified by bytecode
+    // generate evm proof with keccak that can be verified by bytecode
     gen_evm_proof,
-    // generate evm proof with KZG-GWC in bytes that can be verified by bytecode
+    // generate snark proof with keccak and KZG-GWC that can be verified by bytecode
     gen_evm_proof_gwc,
-    // generate evm proof with KZG-BDFG in bytes that can be verified by bytecode
+    // generate evm proof with keccak and KZG-BDFG that can be verified by bytecode
     gen_evm_proof_shplonk,
     // generate the bytecode that verifies proofs
     gen_evm_verifier,
-    // generate the bytecode that verifies proofs with KZG-GWC
+    // generate the bytecode that verifies proofs with keccak and KZG-GWC
     gen_evm_verifier_gwc,
-    // generate the bytecode that verifies proofs with KZG-BDFG
+    // generate the bytecode that verifies proofs with keccak and KZG-BDFG
     gen_evm_verifier_shplonk,
 };
 #[cfg(feature = "loader_halo2")]
 pub use halo2_api::{
     // generate pk
     gen_pk,
-    // generate proof
+    // generate proof with poseidon
     gen_proof,
-    // generate proof with KZG-GWC
+    // generate proof with poseidon and KZG-GWC
     gen_proof_gwc,
-    // generate proof with KZG-BDFG
+    // generate proof with poseidon and KZG-BDFG
     gen_proof_shplonk,
     // generate a snark struct (proof + witnesses for aggregation circuit)
     gen_snark,

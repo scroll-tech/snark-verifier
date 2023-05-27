@@ -1,28 +1,28 @@
 use ark_std::{end_timer, start_timer};
-use halo2_base::{halo2_proofs, utils::fs::gen_srs};
+use halo2_base::halo2_proofs;
+use halo2_base::utils::fs::gen_srs;
 use halo2_proofs::halo2curves::bn256::Fr;
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 use snark_verifier::loader::native::NativeLoader;
 use snark_verifier_sdk::{
+    self,
     evm::{
         evm_verify, gen_evm_proof_gwc, gen_evm_proof_shplonk, gen_evm_verifier_gwc,
         gen_evm_verifier_shplonk,
     },
     gen_pk,
-    halo2::{
-        aggregation::{load_verify_circuit_degree, AggregationCircuit},
-        gen_proof_gwc, gen_proof_shplonk, gen_snark_gwc, gen_snark_shplonk, PoseidonTranscript,
-        POSEIDON_SPEC,
+    halo2_api::{
+        aggregation::load_verify_circuit_degree, aggregation::AggregationCircuit, gen_proof_gwc,
+        gen_proof_shplonk, gen_snark_gwc, gen_snark_shplonk, PoseidonTranscript, POSEIDON_SPEC,
     },
-    CircuitExt, {self},
+    CircuitExt,
 };
-use std::{
-    env::{set_var, var},
-    path::Path,
-};
+use std::env::{set_var, var};
+use std::path::Path;
 
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{criterion_group, criterion_main};
+use criterion::{BenchmarkId, Criterion};
 use pprof::criterion::{Output, PProfProfiler};
 
 pub mod zkevm {
@@ -66,14 +66,8 @@ fn bench(c: &mut Criterion) {
     let circuit = zkevm::test_circuit();
     let params_app = gen_srs(k);
     let pk = gen_pk(&params_app, &circuit, Some(Path::new("data/zkevm_evm.pkey")));
-    let snark = gen_snark_gwc(
-        &params_app,
-        &pk,
-        circuit,
-        &mut transcript,
-        &mut rng,
-        Some(Path::new("data/zkevm_evm.snark")),
-    );
+    let snark =
+        gen_snark_gwc(&params_app, &pk, circuit, &mut rng, Some(Path::new("data/zkevm_evm.snark")));
     let snarks = [snark];
     // === finished zkevm evm circuit ===
 
@@ -96,15 +90,7 @@ fn bench(c: &mut Criterion) {
         |b, &(params, pk, agg_circuit)| {
             b.iter(|| {
                 let instances = agg_circuit.instances();
-                gen_proof_shplonk(
-                    params,
-                    pk,
-                    agg_circuit.clone(),
-                    instances,
-                    &mut transcript,
-                    &mut rng,
-                    None,
-                );
+                gen_proof_shplonk(params, pk, agg_circuit.clone(), instances, &mut rng, None);
             })
         },
     );
@@ -118,15 +104,7 @@ fn bench(c: &mut Criterion) {
         |b, &(params, pk, agg_circuit)| {
             b.iter(|| {
                 let instances = agg_circuit.instances();
-                gen_proof_gwc(
-                    params,
-                    pk,
-                    agg_circuit.clone(),
-                    instances,
-                    &mut transcript,
-                    &mut rng,
-                    None,
-                );
+                gen_proof_gwc(params, pk, agg_circuit.clone(), instances, &mut rng, None);
             })
         },
     );

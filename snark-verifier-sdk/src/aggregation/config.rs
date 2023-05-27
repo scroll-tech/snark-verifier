@@ -1,7 +1,7 @@
 use halo2_base::{
     halo2_proofs::{
         halo2curves::bn256::{Fq, Fr, G1Affine},
-        plonk::{Column, ConstraintSystem, Instance},
+        plonk::{Column, ConstraintSystem, Expression, Instance},
     },
     utils::modulus,
 };
@@ -9,10 +9,11 @@ use snark_verifier::loader::halo2::halo2_ecc::{
     ecc::{BaseFieldEccChip, EccChip},
     fields::fp::{FpConfig, FpStrategy},
 };
+use zkevm_circuits::util::{Challenges, SubCircuitConfig};
 
 use crate::{BITS, LIMBS};
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 /// Parameters for aggregation circuit configs.
 pub struct AggregationConfigParams {
     pub strategy: FpStrategy,
@@ -75,5 +76,21 @@ impl AggregationConfig {
     /// Ecc gate configuration
     pub fn ecc_chip(&self) -> BaseFieldEccChip<G1Affine> {
         EccChip::construct(self.base_field_config.clone())
+    }
+}
+
+/// Auxiliary arguments for AggregationCircuit's Config
+#[derive(Clone, Debug)]
+pub struct AggregationConfigArgs<Fr> {
+    pub param: AggregationConfigParams,
+    pub challenges: Challenges<Expression<Fr>>,
+}
+
+impl SubCircuitConfig<Fr> for AggregationConfig {
+    type ConfigArgs = AggregationConfigArgs<Fr>;
+
+    /// Return a new AggregationConfig
+    fn new(meta: &mut ConstraintSystem<Fr>, config_args: Self::ConfigArgs) -> Self {
+        Self::configure(meta, config_args.param)
     }
 }

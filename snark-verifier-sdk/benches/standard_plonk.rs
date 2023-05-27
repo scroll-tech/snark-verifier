@@ -1,29 +1,27 @@
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{criterion_group, criterion_main};
+use criterion::{BenchmarkId, Criterion};
 use pprof::criterion::{Output, PProfProfiler};
 
 use ark_std::{end_timer, start_timer};
 use halo2_base::halo2_proofs;
+use halo2_proofs::halo2curves as halo2_curves;
 use halo2_proofs::{
-    halo2curves as halo2_curves,
     halo2curves::bn256::Bn256,
     poly::{commitment::Params, kzg::commitment::ParamsKZG},
 };
-use rand::{rngs::OsRng, SeedableRng};
+use rand::rngs::OsRng;
+use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 use snark_verifier_sdk::{
-    gen_pk,
-    halo2::{aggregation::AggregationCircuit, gen_proof_shplonk, gen_snark_shplonk},
-    CircuitExt, Snark,
+    gen_pk, gen_proof_shplonk, gen_snark_shplonk, AggregationCircuit, CircuitExt, Snark,
 };
 
 mod application {
-    use super::{
-        halo2_curves::bn256::Fr,
-        halo2_proofs::{
-            circuit::{Layouter, SimpleFloorPlanner, Value},
-            plonk::{Advice, Circuit, Column, ConstraintSystem, Error, Fixed, Instance},
-            poly::Rotation,
-        },
+    use super::halo2_curves::bn256::Fr;
+    use super::halo2_proofs::{
+        circuit::{Layouter, SimpleFloorPlanner, Value},
+        plonk::{Advice, Circuit, Column, ConstraintSystem, Error, Fixed, Instance},
+        poly::Rotation,
     };
     use rand::RngCore;
     use snark_verifier_sdk::CircuitExt;
