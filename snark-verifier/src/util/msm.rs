@@ -8,7 +8,9 @@ use crate::{
 use num_integer::Integer;
 use std::{
     default::Default,
-    iter::{self, Sum},
+    iter::{
+        Sum, {self},
+    },
     mem::size_of,
     ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign},
 };

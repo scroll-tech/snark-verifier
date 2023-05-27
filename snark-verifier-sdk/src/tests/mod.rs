@@ -1,6 +1,6 @@
 use halo2_base::halo2_proofs;
-use halo2_proofs::halo2curves::bn256::Fr;
 use halo2_proofs::{
+    halo2curves::bn256::Fr,
     plonk::{Advice, Column, ConstraintSystem, Fixed, Instance},
     poly::Rotation,
 };

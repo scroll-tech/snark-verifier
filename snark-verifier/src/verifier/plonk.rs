@@ -1,7 +1,9 @@
 use crate::{
     cost::{Cost, CostEstimation},
     loader::{native::NativeLoader, LoadedScalar, Loader},
-    pcs::{self, AccumulatorEncoding, MultiOpenScheme},
+    pcs::{
+        AccumulatorEncoding, MultiOpenScheme, {self},
+    },
     util::{
         arithmetic::{CurveAffine, Field, Rotation},
         msm::Msm,

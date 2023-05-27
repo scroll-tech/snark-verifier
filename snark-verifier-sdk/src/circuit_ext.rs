@@ -3,6 +3,7 @@ use halo2_base::halo2_proofs::{
     plonk::{Circuit, Selector},
 };
 
+/// Circuit Extension trait that exposes related APIs.
 pub trait CircuitExt<F: Field>: Circuit<F> {
     /// Return the number of instances of the circuit.
     /// This may depend on extra circuit parameters but NOT on private witnesses.

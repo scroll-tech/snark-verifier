@@ -1,8 +1,10 @@
-use crate::halo2_proofs::{
-    circuit::{Cell, Value},
-    plonk::Error,
+use crate::{
+    halo2_proofs::{
+        circuit::{Cell, Value},
+        plonk::Error,
+    },
+    util::arithmetic::{CurveAffine, FieldExt},
 };
-use crate::util::arithmetic::{CurveAffine, FieldExt};
 use std::{fmt::Debug, ops::Deref};
 
 pub trait Context: Debug {
@@ -156,21 +158,21 @@ pub trait EccInstructions<'a, C: CurveAffine>: Clone + Debug {
 }
 
 mod halo2_lib {
-    use crate::halo2_proofs::{
-        circuit::{Cell, Value},
-        halo2curves::CurveAffineExt,
-        plonk::Error,
-    };
     use crate::{
+        halo2_proofs::{
+            circuit::{Cell, Value},
+            halo2curves::CurveAffineExt,
+            plonk::Error,
+        },
         loader::halo2::{Context, EccInstructions, IntegerInstructions},
         util::arithmetic::{CurveAffine, Field},
     };
     use halo2_base::{
-        self,
         gates::{flex_gate::FlexGateConfig, GateInstructions, RangeInstructions},
         utils::BigPrimeField as PrimeField,
         AssignedValue,
         QuantumCell::{Constant, Existing, Witness},
+        {self},
     };
     use halo2_ecc::{
         bigint::CRTInteger,

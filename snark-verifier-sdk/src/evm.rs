@@ -1,7 +1,9 @@
 use crate::{circuit_ext::CircuitExt, types::Plonk};
 
 #[cfg(feature = "display")]
-use ark_std::{end_timer, start_timer};
+use ark_std::end_timer;
+#[cfg(feature = "display")]
+use ark_std::start_timer;
 use ethereum_types::Address;
 use halo2_base::halo2_proofs::{
     halo2curves::bn256::{Bn256, Fq, Fr, G1Affine},

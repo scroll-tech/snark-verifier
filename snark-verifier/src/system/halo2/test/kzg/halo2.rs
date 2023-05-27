@@ -1,24 +1,26 @@
-use crate::halo2_curves::bn256::{Bn256, Fq, Fr, G1Affine};
-use crate::halo2_proofs::{
-    circuit::{Layouter, SimpleFloorPlanner, Value},
-    plonk::{self, create_proof, verify_proof, Circuit, Column, ConstraintSystem, Instance},
-    poly::{
-        commitment::ParamsProver,
-        kzg::{
-            commitment::{KZGCommitmentScheme, ParamsKZG},
-            multiopen::{ProverSHPLONK, VerifierSHPLONK},
-            strategy::SingleStrategy,
+use crate::{
+    halo2_curves::bn256::{Bn256, Fq, Fr, G1Affine},
+    halo2_proofs::{
+        circuit::{Layouter, SimpleFloorPlanner, Value},
+        plonk::{
+            create_proof, verify_proof, Circuit, Column, ConstraintSystem, Instance, {self},
+        },
+        poly::{
+            commitment::ParamsProver,
+            kzg::{
+                commitment::{KZGCommitmentScheme, ParamsKZG},
+                multiopen::{ProverSHPLONK, VerifierSHPLONK},
+                strategy::SingleStrategy,
+            },
+        },
+        transcript::{
+            Blake2bRead, Blake2bWrite, Challenge255, TranscriptReadBuffer, TranscriptWriterBuffer,
         },
     },
-    transcript::{
-        Blake2bRead, Blake2bWrite, Challenge255, TranscriptReadBuffer, TranscriptWriterBuffer,
-    },
-};
-use crate::{
     loader::{
-        self,
         halo2::test::{Snark, SnarkWitness},
         native::NativeLoader,
+        {self},
     },
     pcs::{
         kzg::{
@@ -38,17 +40,18 @@ use crate::{
         transcript::halo2::{ChallengeScalar, PoseidonTranscript as GenericPoseidonTranscript},
     },
     util::{arithmetic::fe_to_limbs, Itertools},
-    verifier::{self, PlonkVerifier},
+    verifier::{
+        PlonkVerifier, {self},
+    },
 };
 use ark_std::{end_timer, start_timer};
 use halo2_base::{Context, ContextParams};
-use halo2_ecc::ecc::EccChip;
-use halo2_ecc::fields::fp::FpConfig;
+use halo2_ecc::{ecc::EccChip, fields::fp::FpConfig};
 use paste::paste;
 use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
 use serde::{Deserialize, Serialize};
-use std::fs::File;
 use std::{
+    fs::File,
     io::{Cursor, Read, Write},
     rc::Rc,
 };

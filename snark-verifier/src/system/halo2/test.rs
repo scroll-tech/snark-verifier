@@ -1,15 +1,17 @@
 #![allow(dead_code)]
 #![allow(clippy::all)]
-use crate::halo2_proofs::{
-    dev::MockProver,
-    plonk::{create_proof, verify_proof, Circuit, ProvingKey},
-    poly::{
-        commitment::{CommitmentScheme, Params, ParamsProver, Prover, Verifier},
-        VerificationStrategy,
+use crate::{
+    halo2_proofs::{
+        dev::MockProver,
+        plonk::{create_proof, verify_proof, Circuit, ProvingKey},
+        poly::{
+            commitment::{CommitmentScheme, Params, ParamsProver, Prover, Verifier},
+            VerificationStrategy,
+        },
+        transcript::{EncodedChallenge, TranscriptReadBuffer, TranscriptWriterBuffer},
     },
-    transcript::{EncodedChallenge, TranscriptReadBuffer, TranscriptWriterBuffer},
+    util::arithmetic::CurveAffine,
 };
-use crate::util::arithmetic::CurveAffine;
 use rand_chacha::rand_core::RngCore;
 use std::{fs, io::Cursor};
 
@@ -203,12 +205,13 @@ macro_rules! halo2_native_verify {
         $svk:expr,
         $dk:expr
     ) => {{
-        use $crate::halo2_proofs::poly::commitment::ParamsProver;
-        use $crate::verifier::PlonkVerifier;
+        use $crate::{halo2_proofs::poly::commitment::ParamsProver, verifier::PlonkVerifier};
 
         let proof = <$plonk_verifier>::read_proof($svk, $protocol, $instances, $transcript);
         assert!(<$plonk_verifier>::verify($svk, $dk, $protocol, $instances, &proof))
     }};
 }
 
-pub(crate) use {halo2_create_snark, halo2_native_verify, halo2_prepare};
+pub(crate) use halo2_create_snark;
+pub(crate) use halo2_native_verify;
+pub(crate) use halo2_prepare;

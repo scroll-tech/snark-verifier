@@ -1,9 +1,11 @@
-use crate::halo2_proofs::{
-    circuit::{Layouter, SimpleFloorPlanner, Value},
-    plonk::{Advice, Circuit, Column, ConstraintSystem, Error, Fixed, Instance},
-    poly::Rotation,
+use crate::{
+    halo2_proofs::{
+        circuit::{Layouter, SimpleFloorPlanner, Value},
+        plonk::{Advice, Circuit, Column, ConstraintSystem, Error, Fixed, Instance},
+        poly::Rotation,
+    },
+    util::arithmetic::FieldExt,
 };
-use crate::util::arithmetic::FieldExt;
 use rand::RngCore;
 
 #[allow(dead_code)]

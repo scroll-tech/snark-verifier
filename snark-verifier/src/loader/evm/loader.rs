@@ -17,7 +17,9 @@ use hex;
 use std::{
     cell::RefCell,
     collections::HashMap,
-    fmt::{self, Debug},
+    fmt::{
+        Debug, {self},
+    },
     iter,
     ops::{Add, AddAssign, DerefMut, Mul, MulAssign, Neg, Sub, SubAssign},
     rc::Rc,

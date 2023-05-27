@@ -1,6 +1,5 @@
 //! `Loader` implementation for generating verifier in [`halo2_proofs`] circuit.
-use crate::halo2_proofs::circuit;
-use crate::{util::arithmetic::CurveAffine, Protocol};
+use crate::{halo2_proofs::circuit, util::arithmetic::CurveAffine, Protocol};
 use std::rc::Rc;
 
 pub(crate) mod loader;

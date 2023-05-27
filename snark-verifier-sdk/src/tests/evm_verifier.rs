@@ -1,12 +1,16 @@
 use super::TestCircuit1;
-use crate::evm::{evm_verify, gen_evm_proof_shplonk, gen_evm_verifier};
-use crate::gen_pk;
-use crate::CircuitExt;
+use crate::{
+    evm::{evm_verify, gen_evm_proof_shplonk, gen_evm_verifier},
+    halo2_api::gen_pk,
+    CircuitExt,
+};
 use ark_std::test_rng;
 use halo2_base::halo2_proofs;
 use halo2_proofs::halo2curves::bn256::Bn256;
-use snark_verifier::loader::halo2::halo2_ecc::halo2_base::utils::fs::gen_srs;
-use snark_verifier::pcs::kzg::{Bdfg21, Kzg};
+use snark_verifier::{
+    loader::halo2::halo2_ecc::halo2_base::utils::fs::gen_srs,
+    pcs::kzg::{Bdfg21, Kzg},
+};
 
 #[test]
 fn test_evm_verification() {

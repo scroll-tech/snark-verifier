@@ -1,56 +1,79 @@
-use crate::{
-    circuit_ext::CircuitExt,
-    types::{PoseidonTranscript, POSEIDON_SPEC},
+use std::{
+    fs::{
+        File, self,
+    },
+    io::BufWriter,
+    path::Path,
 };
 
-use super::{read_instances, write_instances, Snark, SnarkWitness};
-#[cfg(feature = "display")]
-use ark_std::{end_timer, start_timer};
-use halo2_base::halo2_proofs::{
-    self, poly::kzg::strategy::SingleStrategy, transcript::TranscriptReadBuffer,
+use crate::{
+    circuit_ext::CircuitExt,
+    io::{read_pk, read_snark},
+    read_instances,
+    types::{PoseidonTranscript, POSEIDON_SPEC},
+    write_instances, Snark,
 };
-use halo2_proofs::{
-    circuit::Layouter,
-    halo2curves::{
-        bn256::{Bn256, Fr, G1Affine},
-        group::ff::Field,
-    },
-    plonk::{
-        create_proof, keygen_vk, verify_proof, Circuit, ConstraintSystem, Error, ProvingKey,
-        VerifyingKey,
-    },
+
+#[cfg(feature = "display")]
+use ark_std::end_timer;
+#[cfg(feature = "display")]
+use ark_std::start_timer;
+use halo2_base::halo2_proofs::{
+    halo2curves::bn256::{Bn256, Fr, G1Affine},
+    plonk::{create_proof, keygen_pk, keygen_vk, verify_proof, Circuit, ProvingKey, VerifyingKey},
     poly::{
         commitment::{ParamsProver, Prover, Verifier},
         kzg::{
             commitment::{KZGCommitmentScheme, ParamsKZG},
             msm::DualMSM,
             multiopen::{ProverGWC, ProverSHPLONK, VerifierGWC, VerifierSHPLONK},
-            strategy::{AccumulatorStrategy, GuardKZG},
+            strategy::{AccumulatorStrategy, GuardKZG, SingleStrategy},
         },
         VerificationStrategy,
     },
+    transcript::TranscriptReadBuffer,
+    SerdeFormat, {self},
 };
 use itertools::Itertools;
-use lazy_static::lazy_static;
 use rand::Rng;
 use snark_verifier::{
-    cost::CostEstimation,
     loader::native::NativeLoader,
-    pcs::{self, MultiOpenScheme},
     system::halo2::{compile, Config},
-    util::transcript::TranscriptWrite,
-    verifier::PlonkProof,
-    PoseidonSpec,
-};
-use std::{
-    fs::{self, File},
-    marker::PhantomData,
-    path::Path,
 };
 
-pub mod aggregation;
-pub mod circuit;
-pub mod config;
+#[allow(clippy::let_and_return)]
+pub fn gen_pk<C: Circuit<Fr>>(
+    params: &ParamsKZG<Bn256>, // TODO: read pk without params
+    circuit: &C,
+    path: Option<&Path>,
+) -> ProvingKey<G1Affine> {
+    if let Some(path) = path {
+        if let Ok(pk) = read_pk::<C>(path) {
+            return pk;
+        }
+    }
+    #[cfg(feature = "display")]
+    let pk_time = start_timer!(|| "Generating vkey & pkey");
+
+    let vk = keygen_vk(params, circuit).unwrap();
+    let pk = keygen_pk(params, vk, circuit).unwrap();
+
+    #[cfg(feature = "display")]
+    end_timer!(pk_time);
+
+    if let Some(path) = path {
+        #[cfg(feature = "display")]
+        let write_time = start_timer!(|| format!("Writing pkey to {path:?}"));
+
+        path.parent().and_then(|dir| fs::create_dir_all(dir).ok()).unwrap();
+        let mut f = BufWriter::new(File::create(path).unwrap());
+        pk.write(&mut f, SerdeFormat::RawBytesUnchecked).unwrap();
+
+        #[cfg(feature = "display")]
+        end_timer!(write_time);
+    }
+    pk
+}
 
 /// Generates a native proof using either SHPLONK or GWC proving method. Uses Poseidon for Fiat-Shamir.
 ///
@@ -296,90 +319,4 @@ where
     ConcreteCircuit: CircuitExt<Fr>,
 {
     verify_snark::<ConcreteCircuit, VerifierGWC<_>>(verifier_params, snark, vk)
-}
-
-/// Tries to deserialize a SNARK from the specified `path` using `bincode`.
-///
-/// WARNING: The user must keep track of whether the SNARK was generated using the GWC or SHPLONK multi-open scheme.
-pub fn read_snark(path: impl AsRef<Path>) -> Result<Snark, bincode::Error> {
-    let f = File::open(path).map_err(Box::<bincode::ErrorKind>::from)?;
-    bincode::deserialize_from(f)
-}
-
-pub fn gen_dummy_snark<ConcreteCircuit, MOS>(
-    params: &ParamsKZG<Bn256>,
-    vk: Option<&VerifyingKey<G1Affine>>,
-    num_instance: Vec<usize>,
-) -> Snark
-where
-    ConcreteCircuit: CircuitExt<Fr>,
-    MOS: MultiOpenScheme<G1Affine, NativeLoader>
-        + CostEstimation<G1Affine, Input = Vec<pcs::Query<Fr>>>,
-{
-    struct CsProxy<F, C>(PhantomData<(F, C)>);
-
-    impl<F: Field, C: CircuitExt<F>> Circuit<F> for CsProxy<F, C> {
-        type Config = C::Config;
-        type FloorPlanner = C::FloorPlanner;
-
-        fn without_witnesses(&self) -> Self {
-            CsProxy(PhantomData)
-        }
-
-        fn configure(meta: &mut ConstraintSystem<F>) -> Self::Config {
-            C::configure(meta)
-        }
-
-        fn synthesize(
-            &self,
-            config: Self::Config,
-            mut layouter: impl Layouter<F>,
-        ) -> Result<(), Error> {
-            // when `C` has simple selectors, we tell `CsProxy` not to over-optimize the selectors (e.g., compressing them  all into one) by turning all selectors on in the first row
-            // currently this only works if all simple selector columns are used in the actual circuit and there are overlaps amongst all enabled selectors (i.e., the actual circuit will not optimize constraint system further)
-            layouter.assign_region(
-                || "",
-                |mut region| {
-                    for q in C::selectors(&config).iter() {
-                        q.enable(&mut region, 0)?;
-                    }
-                    Ok(())
-                },
-            )?;
-            Ok(())
-        }
-    }
-
-    let dummy_vk = vk
-        .is_none()
-        .then(|| keygen_vk(params, &CsProxy::<Fr, ConcreteCircuit>(PhantomData)).unwrap());
-    let protocol = compile(
-        params,
-        vk.or(dummy_vk.as_ref()).unwrap(),
-        Config::kzg()
-            .with_num_instance(num_instance.clone())
-            .with_accumulator_indices(ConcreteCircuit::accumulator_indices()),
-    );
-    let instances = num_instance.into_iter().map(|n| vec![Fr::default(); n]).collect();
-    let proof = {
-        let mut transcript = PoseidonTranscript::<NativeLoader, _>::new(Vec::new());
-        for _ in 0..protocol
-            .num_witness
-            .iter()
-            .chain(Some(&protocol.quotient.num_chunk()))
-            .sum::<usize>()
-        {
-            transcript.write_ec_point(G1Affine::default()).unwrap();
-        }
-        for _ in 0..protocol.evaluations.len() {
-            transcript.write_scalar(Fr::default()).unwrap();
-        }
-        let queries = PlonkProof::<G1Affine, NativeLoader, MOS>::empty_queries(&protocol);
-        for _ in 0..MOS::estimate_cost(&queries).num_commitment {
-            transcript.write_ec_point(G1Affine::default()).unwrap();
-        }
-        transcript.finalize()
-    };
-
-    Snark::new(protocol, instances, proof)
 }

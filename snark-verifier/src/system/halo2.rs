@@ -1,10 +1,15 @@
 //! [`halo2_proofs`] proof system
-use crate::halo2_proofs::{
-    plonk::{self, Any, ConstraintSystem, FirstPhase, SecondPhase, ThirdPhase, VerifyingKey},
-    poly::{self, commitment::Params},
-    transcript::{EncodedChallenge, Transcript},
-};
 use crate::{
+    halo2_proofs::{
+        plonk::{
+            Any, ConstraintSystem, FirstPhase, SecondPhase, ThirdPhase, VerifyingKey, {self},
+        },
+        poly::{
+            commitment::Params,
+            {self},
+        },
+        transcript::{EncodedChallenge, Transcript},
+    },
     util::{
         arithmetic::{root_of_unity, CurveAffine, Domain, FieldExt, Rotation},
         protocol::{

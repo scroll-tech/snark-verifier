@@ -1,5 +1,5 @@
-use crate::halo2_proofs::circuit::Value;
 use crate::{
+    halo2_proofs::circuit::Value,
     util::{arithmetic::CurveAffine, Itertools},
     Protocol,
 };

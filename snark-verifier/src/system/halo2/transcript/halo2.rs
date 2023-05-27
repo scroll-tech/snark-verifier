@@ -1,9 +1,11 @@
 //! Transcript for verifier in [`halo2_proofs`] circuit.
-use crate::halo2_proofs;
 use crate::{
+    halo2_proofs,
     loader::{
         halo2::{EcPoint, EccInstructions, Halo2Loader, Scalar},
-        native::{self, NativeLoader},
+        native::{
+            NativeLoader, {self},
+        },
         Loader, ScalarLoader,
     },
     util::{
@@ -16,7 +18,9 @@ use crate::{
 };
 use halo2_proofs::{circuit::Value, transcript::EncodedChallenge};
 use std::{
-    io::{self, Read, Write},
+    io::{
+        Read, Write, {self},
+    },
     rc::Rc,
 };
 
@@ -421,8 +425,7 @@ where
 }
 
 mod halo2_lib {
-    use crate::halo2_curves::CurveAffineExt;
-    use crate::system::halo2::transcript::halo2::NativeEncoding;
+    use crate::{halo2_curves::CurveAffineExt, system::halo2::transcript::halo2::NativeEncoding};
     use halo2_base::utils::BigPrimeField as PrimeField;
     use halo2_ecc::ecc::BaseFieldEccChip;
 

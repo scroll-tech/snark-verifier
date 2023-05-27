@@ -1,5 +1,4 @@
-use crate::halo2_proofs::poly::kzg::commitment::ParamsKZG;
-use crate::util::arithmetic::MultiMillerLoop;
+use crate::{halo2_proofs::poly::kzg::commitment::ParamsKZG, util::arithmetic::MultiMillerLoop};
 use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
 
 mod native;
@@ -36,10 +35,11 @@ macro_rules! halo2_kzg_prepare {
     ($k:expr, $config:expr, $create_circuit:expr) => {{
         use $crate::halo2_curves::bn256::Bn256;
         #[allow(unused_imports)]
-        use $crate::system::halo2::test::{
-            halo2_prepare,
-            kzg::{setup, TESTDATA_DIR},
-        };
+        use $crate::system::halo2::test::halo2_prepare;
+        #[allow(unused_imports)]
+        use $crate::system::halo2::test::kzg::setup;
+        #[allow(unused_imports)]
+        use $crate::system::halo2::test::kzg::TESTDATA_DIR;
 
         halo2_prepare!(TESTDATA_DIR, $k, setup::<Bn256>, $config, $create_circuit)
     }};
@@ -57,10 +57,10 @@ macro_rules! halo2_kzg_create_snark {
         $protocol:expr,
         $circuits:expr
     ) => {{
-        use $crate::halo2_proofs::poly::kzg::{
-            commitment::KZGCommitmentScheme, strategy::SingleStrategy,
+        use $crate::{
+            halo2_proofs::poly::kzg::{commitment::KZGCommitmentScheme, strategy::SingleStrategy},
+            system::halo2::test::halo2_create_snark,
         };
-        use $crate::system::halo2::test::halo2_create_snark;
 
         halo2_create_snark!(
             KZGCommitmentScheme<_>,
@@ -101,6 +101,7 @@ macro_rules! halo2_kzg_native_verify {
     }};
 }
 
-pub(crate) use {
-    halo2_kzg_config, halo2_kzg_create_snark, halo2_kzg_native_verify, halo2_kzg_prepare,
-};
+pub(crate) use halo2_kzg_config;
+pub(crate) use halo2_kzg_create_snark;
+pub(crate) use halo2_kzg_native_verify;
+pub(crate) use halo2_kzg_prepare;

@@ -4,7 +4,9 @@ use halo2_base::{
     halo2_proofs::{
         circuit::{Layouter, SimpleFloorPlanner, Value},
         halo2curves::bn256::{Bn256, Fr},
-        plonk::{self, Circuit, ConstraintSystem, Selector},
+        plonk::{
+            Circuit, ConstraintSystem, Selector, {self},
+        },
         poly::{commitment::ParamsProver, kzg::commitment::ParamsKZG},
     },
     Context, ContextParams,
@@ -19,14 +21,13 @@ use snark_verifier::{
 };
 
 use crate::{
-    halo2::aggregation::{aggregate, flatten_accumulator},
+    aggregation::{
+        aggregate,
+        config::{AggregationConfig, AggregationConfigParams},
+        flatten_accumulator, POSEIDON_SPEC,
+    },
     types::{Halo2Loader, KzgAs, KzgBDFG, PoseidonTranscript, Shplonk, Svk},
     CircuitExt, Snark, SnarkWitness, BITS, LIMBS,
-};
-
-use super::{
-    config::{AggregationConfig, AggregationConfigParams},
-    POSEIDON_SPEC,
 };
 
 /// Aggregation circuit that does not re-expose any public inputs from aggregated snarks

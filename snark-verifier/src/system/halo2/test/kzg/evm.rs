@@ -1,12 +1,12 @@
-use crate::{halo2_curves, halo2_proofs};
 use crate::{
+    halo2_curves, halo2_proofs,
     loader::native::NativeLoader,
     pcs::kzg::{Bdfg21, Gwc19, Kzg, LimbsEncoding},
     system::halo2::{
         test::{
             kzg::{
-                self, halo2_kzg_config, halo2_kzg_create_snark, halo2_kzg_native_verify,
-                halo2_kzg_prepare, BITS, LIMBS,
+                halo2_kzg_config, halo2_kzg_create_snark, halo2_kzg_native_verify,
+                halo2_kzg_prepare, BITS, LIMBS, {self},
             },
             StandardPlonk,
         },

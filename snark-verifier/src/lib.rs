@@ -33,6 +33,7 @@ pub enum Error {
     Transcript(std::io::ErrorKind, String),
 }
 
+/// Various parameters for the aggregation circuit.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Protocol<C, L = loader::native::NativeLoader>
 where

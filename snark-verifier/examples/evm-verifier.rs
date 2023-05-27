@@ -1,7 +1,7 @@
 use ethereum_types::Address;
 use halo2_base::halo2_proofs::{
-    self,
     poly::kzg::multiopen::{ProverSHPLONK, VerifierSHPLONK},
+    {self},
 };
 use halo2_proofs::{
     circuit::{Layouter, SimpleFloorPlanner, Value},
@@ -24,10 +24,14 @@ use halo2_proofs::{
 use itertools::Itertools;
 use rand::{rngs::OsRng, RngCore};
 use snark_verifier::{
-    loader::evm::{self, encode_calldata, EvmLoader, ExecutorBuilder},
+    loader::evm::{
+        encode_calldata, EvmLoader, ExecutorBuilder, {self},
+    },
     pcs::kzg::{Bdfg21, Kzg},
     system::halo2::{compile, transcript::evm::EvmTranscript, Config},
-    verifier::{self, PlonkVerifier},
+    verifier::{
+        PlonkVerifier, {self},
+    },
 };
 use std::rc::Rc;
 

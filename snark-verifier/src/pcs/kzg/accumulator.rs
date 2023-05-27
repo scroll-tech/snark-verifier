@@ -135,8 +135,8 @@ pub use halo2::LimbsEncodingInstructions;
 
 #[cfg(feature = "loader_halo2")]
 mod halo2 {
-    use crate::halo2_proofs::{circuit::Value, plonk};
     use crate::{
+        halo2_proofs::{circuit::Value, plonk},
         loader::halo2::{EccInstructions, Halo2Loader, Scalar, Valuetools},
         pcs::{
             kzg::{KzgAccumulator, LimbsEncoding},

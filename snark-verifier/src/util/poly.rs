@@ -1,7 +1,9 @@
 use crate::util::{arithmetic::Field, parallelize};
 use rand::Rng;
 use std::{
-    iter::{self, Sum},
+    iter::{
+        Sum, {self},
+    },
     ops::{
         Add, Index, IndexMut, Mul, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
         RangeToInclusive, Sub,

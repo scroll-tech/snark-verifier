@@ -1,6 +1,8 @@
-use crate::poseidon::{self, SparseMDSMatrix, Spec};
 use crate::{
     loader::{LoadedScalar, ScalarLoader},
+    poseidon::{
+        SparseMDSMatrix, Spec, {self},
+    },
     util::{arithmetic::FieldExt, Itertools},
 };
 use std::{iter, marker::PhantomData, mem};

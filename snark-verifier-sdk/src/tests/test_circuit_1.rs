@@ -2,9 +2,9 @@
 use super::StandardPlonkConfig;
 use crate::CircuitExt;
 use halo2_base::halo2_proofs;
-use halo2_proofs::halo2curves::bn256::Fr;
 use halo2_proofs::{
     circuit::{Layouter, SimpleFloorPlanner, Value},
+    halo2curves::bn256::Fr,
     plonk::{Circuit, ConstraintSystem, Error},
 };
 use rand::RngCore;

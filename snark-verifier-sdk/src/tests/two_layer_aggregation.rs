@@ -1,14 +1,17 @@
 use super::TestCircuit1;
-use crate::evm::{evm_verify, gen_evm_proof_shplonk, gen_evm_verifier};
-use crate::halo2::circuit::AggregationCircuit;
-use crate::CircuitExt;
-use crate::{gen_pk, halo2::gen_snark_shplonk};
+use crate::{
+    aggregation::aggregation_circuit::AggregationCircuit,
+    evm::{evm_verify, gen_evm_proof_shplonk, gen_evm_verifier},
+    halo2_api::{gen_pk, gen_snark_shplonk},
+    CircuitExt,
+};
 use ark_std::test_rng;
 use halo2_base::halo2_proofs;
-use halo2_proofs::halo2curves::bn256::Bn256;
-use halo2_proofs::poly::commitment::Params;
-use snark_verifier::loader::halo2::halo2_ecc::halo2_base::utils::fs::gen_srs;
-use snark_verifier::pcs::kzg::{Bdfg21, Kzg};
+use halo2_proofs::{halo2curves::bn256::Bn256, poly::commitment::Params};
+use snark_verifier::{
+    loader::halo2::halo2_ecc::halo2_base::utils::fs::gen_srs,
+    pcs::kzg::{Bdfg21, Kzg},
+};
 use std::path::Path;
 
 #[test]

@@ -1,7 +1,7 @@
 use ethereum_types::Address;
 use halo2_base::halo2_proofs::{
-    self,
     poly::kzg::multiopen::{ProverSHPLONK, VerifierSHPLONK},
+    {self},
 };
 use halo2_proofs::{
     dev::MockProver,
@@ -21,12 +21,16 @@ use itertools::Itertools;
 use rand::rngs::OsRng;
 use snark_verifier::{
     loader::{
-        evm::{self, encode_calldata, EvmLoader, ExecutorBuilder},
+        evm::{
+            encode_calldata, EvmLoader, ExecutorBuilder, {self},
+        },
         native::NativeLoader,
     },
     pcs::kzg::{Bdfg21, Kzg, KzgAs, LimbsEncoding},
     system::halo2::{compile, transcript::evm::EvmTranscript, Config},
-    verifier::{self, PlonkVerifier},
+    verifier::{
+        PlonkVerifier, {self},
+    },
 };
 use std::{io::Cursor, rc::Rc};
 
@@ -38,12 +42,14 @@ type As = KzgAs<Pcs>;
 type Plonk = verifier::Plonk<Pcs, LimbsEncoding<LIMBS, BITS>>;
 
 mod application {
-    use super::halo2_proofs::{
-        circuit::{Layouter, SimpleFloorPlanner, Value},
-        plonk::{Advice, Circuit, Column, ConstraintSystem, Error, Fixed, Instance},
-        poly::Rotation,
+    use super::{
+        halo2_proofs::{
+            circuit::{Layouter, SimpleFloorPlanner, Value},
+            plonk::{Advice, Circuit, Column, ConstraintSystem, Error, Fixed, Instance},
+            poly::Rotation,
+        },
+        Fr,
     };
-    use super::Fr;
     use rand::RngCore;
 
     #[derive(Clone, Copy)]
@@ -201,20 +207,26 @@ mod application {
 }
 
 mod aggregation {
-    use super::halo2_proofs::{
-        circuit::{Cell, Layouter, SimpleFloorPlanner, Value},
-        plonk::{self, Circuit, Column, ConstraintSystem, Instance},
-        poly::{commitment::ParamsProver, kzg::commitment::ParamsKZG},
+    use super::{
+        halo2_proofs::{
+            circuit::{Cell, Layouter, SimpleFloorPlanner, Value},
+            plonk::{
+                Circuit, Column, ConstraintSystem, Instance, {self},
+            },
+            poly::{commitment::ParamsProver, kzg::commitment::ParamsKZG},
+        },
+        As, Bn256, Fq, Fr, G1Affine, Plonk, BITS, LIMBS,
     };
-    use super::{As, Plonk, BITS, LIMBS};
-    use super::{Bn256, Fq, Fr, G1Affine};
     use ark_std::{end_timer, start_timer};
     use halo2_base::{Context, ContextParams};
     use halo2_ecc::ecc::EccChip;
     use itertools::Itertools;
     use rand::rngs::OsRng;
     use snark_verifier::{
-        loader::{self, native::NativeLoader},
+        loader::{
+            native::NativeLoader,
+            {self},
+        },
         pcs::{
             kzg::{KzgAccumulator, KzgSuccinctVerifyingKey},
             AccumulationScheme, AccumulationSchemeProver,

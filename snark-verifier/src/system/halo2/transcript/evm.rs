@@ -1,9 +1,11 @@
 //! Transcript for verifier on EVM.
-use crate::halo2_proofs;
 use crate::{
+    halo2_proofs,
     loader::{
         evm::{loader::Value, u256_to_fe, EcPoint, EvmLoader, MemoryChunk, Scalar},
-        native::{self, NativeLoader},
+        native::{
+            NativeLoader, {self},
+        },
         Loader,
     },
     util::{
@@ -17,7 +19,9 @@ use crate::{
 use ethereum_types::U256;
 use halo2_proofs::transcript::EncodedChallenge;
 use std::{
-    io::{self, Read, Write},
+    io::{
+        Read, Write, {self},
+    },
     iter,
     marker::PhantomData,
     rc::Rc,

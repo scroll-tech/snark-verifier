@@ -13,7 +13,9 @@ use std::{
     cmp::max,
     collections::{BTreeMap, BTreeSet},
     fmt::Debug,
-    iter::{self, Sum},
+    iter::{
+        Sum, {self},
+    },
     ops::{Add, Mul, Neg, Sub},
 };
 

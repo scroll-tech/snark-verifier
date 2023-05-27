@@ -2,8 +2,7 @@
 
 use ark_std::{end_timer, start_timer};
 use common::*;
-use halo2_base::halo2_proofs;
-use halo2_base::utils::fs::gen_srs;
+use halo2_base::{halo2_proofs, utils::fs::gen_srs};
 use halo2_proofs::{
     circuit::{Layouter, SimpleFloorPlanner, Value},
     dev::MockProver,
@@ -13,8 +12,8 @@ use halo2_proofs::{
         FieldExt,
     },
     plonk::{
-        self, create_proof, keygen_pk, keygen_vk, Circuit, ConstraintSystem, Error, ProvingKey,
-        Selector, VerifyingKey,
+        create_proof, keygen_pk, keygen_vk, Circuit, ConstraintSystem, Error, ProvingKey, Selector,
+        VerifyingKey, {self},
     },
     poly::{
         commitment::ParamsProver,
@@ -29,17 +28,24 @@ use halo2_proofs::{
 use itertools::Itertools;
 use rand_chacha::rand_core::OsRng;
 use snark_verifier::{
-    loader::{self, native::NativeLoader, Loader, ScalarLoader},
+    loader::{
+        native::NativeLoader,
+        Loader, ScalarLoader, {self},
+    },
     pcs::{
         kzg::{Gwc19, Kzg, KzgAccumulator, KzgAs, KzgSuccinctVerifyingKey, LimbsEncoding},
         AccumulationScheme, AccumulationSchemeProver,
     },
-    system::halo2::{self, compile, Config},
+    system::halo2::{
+        compile, Config, {self},
+    },
     util::{
         arithmetic::{fe_to_fe, fe_to_limbs},
         hash,
     },
-    verifier::{self, PlonkProof, PlonkVerifier},
+    verifier::{
+        PlonkProof, PlonkVerifier, {self},
+    },
     Protocol,
 };
 use std::{fs, iter, marker::PhantomData, rc::Rc};

@@ -1,5 +1,5 @@
-use crate::halo2_proofs::circuit;
 use crate::{
+    halo2_proofs::circuit,
     loader::{
         halo2::shim::{EccInstructions, IntegerInstructions},
         EcPointLoader, LoadedEcPoint, LoadedScalar, Loader, ScalarLoader,
@@ -11,7 +11,9 @@ use crate::{
 };
 use std::{
     cell::{Ref, RefCell, RefMut},
-    fmt::{self, Debug},
+    fmt::{
+        Debug, {self},
+    },
     marker::PhantomData,
     ops::{Add, AddAssign, Deref, Mul, MulAssign, Neg, Sub, SubAssign},
     rc::Rc,

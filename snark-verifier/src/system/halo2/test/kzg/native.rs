@@ -1,9 +1,9 @@
-use crate::halo2_curves::bn256::{Bn256, G1Affine};
-use crate::halo2_proofs::{
-    poly::kzg::multiopen::{ProverGWC, ProverSHPLONK, VerifierGWC, VerifierSHPLONK},
-    transcript::{Blake2bRead, Blake2bWrite, Challenge255, TranscriptReadBuffer},
-};
 use crate::{
+    halo2_curves::bn256::{Bn256, G1Affine},
+    halo2_proofs::{
+        poly::kzg::multiopen::{ProverGWC, ProverSHPLONK, VerifierGWC, VerifierSHPLONK},
+        transcript::{Blake2bRead, Blake2bWrite, Challenge255, TranscriptReadBuffer},
+    },
     pcs::kzg::{Bdfg21, Gwc19, Kzg, LimbsEncoding},
     system::halo2::test::{
         kzg::{

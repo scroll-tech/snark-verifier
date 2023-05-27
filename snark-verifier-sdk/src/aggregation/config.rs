@@ -5,9 +5,8 @@ use halo2_base::{
     },
     utils::modulus,
 };
-use snark_verifier::loader::halo2::halo2_ecc::ecc::BaseFieldEccChip;
 use snark_verifier::loader::halo2::halo2_ecc::{
-    ecc::EccChip,
+    ecc::{BaseFieldEccChip, EccChip},
     fields::fp::{FpConfig, FpStrategy},
 };
 

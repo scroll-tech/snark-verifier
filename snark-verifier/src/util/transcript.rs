@@ -1,6 +1,7 @@
 use crate::{
     loader::{native::NativeLoader, Loader},
-    {util::arithmetic::CurveAffine, Error},
+    util::arithmetic::CurveAffine,
+    Error,
 };
 
 pub trait Transcript<C, L>
