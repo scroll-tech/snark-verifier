@@ -1,5 +1,5 @@
 #[cfg(feature = "loader_evm")]
-mod evm;
+mod evm_api;
 #[cfg(feature = "loader_halo2")]
 mod halo2_api;
 
@@ -33,7 +33,7 @@ pub use file_io::{
 };
 
 #[cfg(feature = "loader_evm")]
-pub use evm::{
+pub use evm_api::{
     // encode instances and proofs as calldata
     encode_calldata,
     // verify instances and proofs with the bytecode

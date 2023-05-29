@@ -1,7 +1,7 @@
 use super::{TestCircuit1, TestCircuit2};
 use crate::{
     aggregation::aggregation_circuit::AggregationCircuit,
-    evm::{evm_verify, gen_evm_proof_shplonk, gen_evm_verifier},
+    evm_api::{evm_verify, gen_evm_proof_shplonk, gen_evm_verifier},
     halo2_api::{gen_pk, gen_snark_shplonk},
     CircuitExt,
 };

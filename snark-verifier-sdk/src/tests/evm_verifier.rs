@@ -1,6 +1,6 @@
 use super::TestCircuit1;
 use crate::{
-    evm::{evm_verify, gen_evm_proof_shplonk, gen_evm_verifier},
+    evm_api::{evm_verify, gen_evm_proof_shplonk, gen_evm_verifier},
     halo2_api::gen_pk,
     CircuitExt,
 };
