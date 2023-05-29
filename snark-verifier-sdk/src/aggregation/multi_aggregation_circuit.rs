@@ -8,21 +8,23 @@ use crate::{
 use ark_std::end_timer;
 #[cfg(feature = "display")]
 use ark_std::start_timer;
+use halo2_base::utils::value_to_option;
 use halo2_base::{
     halo2_proofs::{
-        circuit::{Layouter, SimpleFloorPlanner},
+        circuit::{Layouter, SimpleFloorPlanner, Value},
         halo2curves::bn256::{Bn256, Fr},
-        plonk::{
-            Circuit, Selector, {self},
-        },
+        plonk::{self, Circuit, Error, Selector},
         poly::kzg::commitment::ParamsKZG,
     },
-    utils::value_to_option,
     Context, ContextParams,
 };
 use itertools::Itertools;
 use rand::Rng;
 use snark_verifier::pcs::kzg::{Bdfg21, Kzg};
+use zkevm_circuits::{
+    util::{Challenges, SubCircuit},
+    witness::Block,
+};
 
 use super::{aggregation_circuit::AggregationCircuit, config::AggregationConfig};
 
@@ -107,9 +109,41 @@ impl Circuit<Fr> for PublicAggregationCircuit {
         config: Self::Config,
         mut layouter: impl Layouter<Fr>,
     ) -> Result<(), plonk::Error> {
+        let challenge = Challenges::default();
+        self.synthesize_sub(&config, &challenge, &mut layouter)
+    }
+}
+
+impl SubCircuit<Fr> for PublicAggregationCircuit {
+    type Config = AggregationConfig;
+
+    fn new_from_block(_block: &Block<Fr>) -> Self {
+        // we cannot instantiate a new Self from a single block
+        unimplemented!()
+    }
+
+    /// Return the minimum number of rows required to prove the block
+    /// Row numbers without/with padding are both returned.
+    fn min_num_rows_block(_block: &Block<Fr>) -> (usize, usize) {
+        // there is no min num rows per block for aggregation circuit
+        unimplemented!()
+    }
+
+    /// Compute the public inputs for this circuit.
+    fn instance(&self) -> Vec<Vec<Fr>> {
+        <PublicAggregationCircuit as CircuitExt<Fr>>::instances(self)
+    }
+
+    /// Make the assignments to the BatchHashCircuit
+    fn synthesize_sub(
+        &self,
+        config: &Self::Config,
+        _challenges: &Challenges<Value<Fr>>,
+        layouter: &mut impl Layouter<Fr>,
+    ) -> Result<(), Error> {
         #[cfg(feature = "display")]
         let witness_time = start_timer!(|| { "synthesize | EVM verifier" });
-        config.range().load_lookup_table(&mut layouter).expect("load range lookup table");
+        config.range().load_lookup_table(layouter).expect("load range lookup table");
         let mut first_pass = halo2_base::SKIP_FIRST_PASS;
         let mut instances = vec![];
         layouter

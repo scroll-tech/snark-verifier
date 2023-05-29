@@ -183,7 +183,7 @@ impl SubCircuit<Fr> for AggregationCircuit {
 
     /// Compute the public inputs for this circuit.
     fn instance(&self) -> Vec<Vec<Fr>> {
-        <AggregationCircuit as CircuitExt<Fr>>::instances(&self)
+        <AggregationCircuit as CircuitExt<Fr>>::instances(self)
     }
 
     /// Make the assignments to the BatchHashCircuit
