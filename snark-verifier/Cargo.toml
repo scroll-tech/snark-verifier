@@ -26,7 +26,8 @@ rayon = { version = "1.5.3", optional = true }
 # loader_evm
 ethereum-types = { version = "0.14", default-features = false, features = ["std"], optional = true }
 sha3 = { version = "0.10", optional = true }
-revm = { version = "2.3.1", optional = true }
+# revm = { version = "2.3.1", optional = true }
+revm = { path = "../../revm/crates/revm", optional = true }
 bytes = { version = "1.2", optional = true }
 rlp = { version = "0.5", default-features = false, features = ["std"], optional = true }
 
