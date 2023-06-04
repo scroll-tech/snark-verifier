@@ -730,6 +730,8 @@ impl Executor {
         let result = self.call_raw_with_env(env);
         self.commit(&result);
 
+        println!("gupeng - raw_call_result = {:#?}", &result);
+
         let RawCallResult { exit_reason, out, gas_used, gas_refunded, logs, debug, env, .. } =
             result;
 
