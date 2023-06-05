@@ -2,8 +2,12 @@ use crate::{
     cost::Cost,
     util::{arithmetic::PrimeField, Itertools},
 };
+use anyhow::{anyhow, Result};
 use ethereum_types::U256;
+use regex::Regex;
 use std::{
+    cmp::Ordering,
+    fmt,
     io::Write,
     iter,
     process::{Command, Stdio},
@@ -12,6 +16,8 @@ use std::{
 pub(crate) mod executor;
 
 pub use executor::ExecutorBuilder;
+
+const MAX_SOLC_VERSION: SolcVersion = SolcVersion::new(0, 8, 19);
 
 /// Memory chunk in EVM.
 #[derive(Debug)]
@@ -105,6 +111,13 @@ pub fn estimate_gas(cost: Cost) -> usize {
 
 /// Compile given yul `code` into deployment bytecode.
 pub fn compile_yul(code: &str) -> Vec<u8> {
+    match SolcVersion::from_cmd() {
+        Ok(version) => {
+            assert!(version <= MAX_SOLC_VERSION, "solc version must be `<= {}`", MAX_SOLC_VERSION)
+        }
+        Err(err) => log::error!("{}", err),
+    };
+
     let mut cmd = Command::new("solc")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -132,4 +145,52 @@ fn split_by_ascii_whitespace(bytes: &[u8]) -> Vec<&[u8]> {
         }
     }
     split
+}
+
+/// Solidity compiler version
+#[derive(Debug, PartialEq)]
+struct SolcVersion {
+    major: u64,
+    minor: u64,
+    patch: u64,
+}
+
+impl fmt::Display for SolcVersion {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}.{}.{}", self.major, self.minor, self.patch)
+    }
+}
+
+impl PartialOrd for SolcVersion {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(
+            [(self.major, other.major), (self.minor, other.minor), (self.patch, other.patch)]
+                .iter()
+                .fold(Ordering::Equal, |acc, (lhs, rhs)| acc.then(lhs.cmp(rhs))),
+        )
+    }
+}
+
+impl SolcVersion {
+    const fn new(major: u64, minor: u64, patch: u64) -> Self {
+        Self { major, minor, patch }
+    }
+
+    fn from_cmd() -> Result<Self> {
+        let output = Command::new("solc").arg("--version").output()?;
+        let output = String::from_utf8_lossy(output.stdout.as_slice());
+
+        let regex = Regex::new(r"Version: (\d+)\.(\d+)\.(\d+)")?;
+
+        regex
+            .captures(&output)
+            .and_then(|version| {
+                match [1, 2, 3].map(|i| version.get(i).and_then(|v| v.as_str().parse::<u64>().ok()))
+                {
+                    [Some(major), Some(minor), Some(patch)] => Some(Self::new(major, minor, patch)),
+                    _ => None,
+                }
+            })
+            .ok_or_else(|| anyhow!("Failed to parse solc version: {}", output))
+    }
 }
