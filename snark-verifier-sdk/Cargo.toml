@@ -17,7 +17,7 @@ serde_json = "1.0"
 bincode = "1.3.3"
 ark-std = { version = "0.3.0", features = ["print-trace"], optional = true }
 
-halo2-base = { git = "https://github.com/scroll-tech/halo2-lib.git", branch = "minimize-diff", default-features=false, features=["halo2-pse","display"] }
+halo2-base = { git = "https://github.com/scroll-tech/halo2-lib.git", branch = "develop", default-features=false, features=["halo2-pse","display"] }
 snark-verifier = { path = "../snark-verifier", default-features = false }
 zkevm-circuits = { git = "https://github.com/scroll-tech/zkevm-circuits.git", branch = "develop" }
 eth-types = { git = "https://github.com/scroll-tech/zkevm-circuits.git", branch = "develop" }
