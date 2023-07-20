@@ -95,6 +95,8 @@ where
         MSMAccumulator = DualMSM<'params, Bn256>,
     >,
 {
+    log::error!("gupeng - gen-proof");
+
     #[cfg(debug_assertions)]
     {
         use halo2_proofs::poly::commitment::Params;
@@ -136,7 +138,7 @@ where
         fs::write(proof_path, &proof).unwrap();
     }
 
-    debug_assert!({
+    assert!({
         let mut transcript_read = PoseidonTranscript::<NativeLoader, &[u8]>::new(proof.as_slice());
         VerificationStrategy::<_, V>::finalize(
             verify_proof::<_, V, _, _, _>(
@@ -289,7 +291,10 @@ where
         &mut transcript,
     ) {
         Ok(_p) => true,
-        Err(_e) => false,
+        Err(e) => {
+            log::error!("gupeng - verify-error: {e:#?}");
+            false
+        }
     }
 }
 
