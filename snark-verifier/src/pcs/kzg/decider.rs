@@ -55,15 +55,10 @@ mod native {
             dk: &Self::DecidingKey,
             accumulators: Vec<KzgAccumulator<M::G1Affine, NativeLoader>>,
         ) -> bool {
+            assert!(!accumulators.is_empty());
             !accumulators
                 .into_iter()
-                //.enumerate()
                 .any(|accumulator| {
-                    /*let decide = Self::decide(dk, accumulator);
-                    if !decide {
-                        panic!("{i}");
-                    }
-                    !decide*/
                     !Self::decide(dk, accumulator)
                 })
         }
