@@ -44,8 +44,8 @@ pub fn rust_verify(
     let instances = instances.iter().map(|instances| instances.as_slice()).collect_vec();
 
     let mut transcript = TranscriptReadBuffer::<_, G1Affine, _>::init(proof);
-    VerificationStrategy::<_, VerifierGWC<_>>::finalize(
-        verify_proof::<_, VerifierGWC<_>, _, EvmTranscript<_, _, _, _>, _>(
+    VerificationStrategy::<_, VerifierSHPLONK<_>>::finalize(
+        verify_proof::<_, VerifierSHPLONK<_>, _, EvmTranscript<_, _, _, _>, _>(
             params.verifier_params(),
             vk,
             AccumulatorStrategy::new(params.verifier_params()),
