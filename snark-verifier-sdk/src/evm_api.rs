@@ -34,6 +34,35 @@ use snark_verifier::{
 };
 use std::{fs, path::Path, rc::Rc};
 
+pub fn rust_verify<'params, V>(
+    params: &'params ParamsKZG<Bn256>,
+    vk: &'params VerifyingKey<G1Affine>,
+    instances: &Vec<Vec<Fr>>,
+    proof: &[u8],
+) -> bool
+where
+    V: Verifier<
+        'params,
+        KZGCommitmentScheme<Bn256>,
+        Guard = GuardKZG<'params, Bn256>,
+        MSMAccumulator = DualMSM<'params, Bn256>,
+    >,
+{
+    let instances = instances.iter().map(|instances| instances.as_slice()).collect_vec();
+
+    let mut transcript = TranscriptReadBuffer::<_, G1Affine, _>::init(proof);
+    VerificationStrategy::<_, V>::finalize(
+        verify_proof::<_, V, _, EvmTranscript<_, _, _, _>, _>(
+            params.verifier_params(),
+            vk,
+            AccumulatorStrategy::new(params.verifier_params()),
+            &[instances.as_slice()],
+            &mut transcript,
+        )
+        .unwrap(),
+    )
+}
+
 /// Generates a proof for evm verification using either SHPLONK or GWC proving method. Uses Keccak for Fiat-Shamir.
 pub fn gen_evm_proof<'params, C, P, V>(
     params: &'params ParamsKZG<Bn256>,
@@ -93,10 +122,13 @@ where
         )
     };
     assert!(accept);
-    log::info!("gupeng - gen_evm_proof - accept = {}", accept);
-    log::info!("gupeng - gen_evm_proof - proof =\n{:?}", proof);
-    log::info!("gupeng - gen_evm_proof - instances =\n{:?}", instances);
-    log::info!("gupeng - gen_evm_proof - vk =\n{:?}", vk);
+
+    /*
+        log::info!("gupeng - gen_evm_proof - accept = {}", accept);
+        log::info!("gupeng - gen_evm_proof - proof =\n{:?}", proof);
+        log::info!("gupeng - gen_evm_proof - instances =\n{:?}", instances);
+        log::info!("gupeng - gen_evm_proof - vk =\n{:?}", vk);
+    */
 
     proof
 }
@@ -191,8 +223,10 @@ pub fn evm_verify(deployment_code: Vec<u8>, instances: Vec<Vec<Fr>>, proof: Vec<
 }
 
 pub fn verify_evm_proof(deployment_code: Vec<u8>, instances: Vec<Vec<Fr>>, proof: Vec<u8>) -> bool {
-    log::info!("gupeng - verify_evm_proof - proof =\n{:?}", proof);
-    log::info!("gupeng - verify_evm_proof - instances =\n{:?}", instances);
+    /*
+        log::info!("gupeng - verify_evm_proof - proof =\n{:?}", proof);
+        log::info!("gupeng - verify_evm_proof - instances =\n{:?}", instances);
+    */
 
     let calldata = encode_calldata(&instances, &proof);
     verify_evm_calldata(deployment_code, calldata)

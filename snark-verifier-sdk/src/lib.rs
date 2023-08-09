@@ -53,6 +53,7 @@ pub use evm_api::{
     gen_evm_verifier_gwc,
     // generate the bytecode that verifies proofs with keccak and KZG-BDFG
     gen_evm_verifier_shplonk,
+    rust_verify,
     // verify calldata with the bytecode (returns bool)
     verify_evm_calldata,
     // verify instances and proofs with the bytecode (returns bool)
