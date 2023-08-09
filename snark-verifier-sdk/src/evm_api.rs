@@ -34,25 +34,18 @@ use snark_verifier::{
 };
 use std::{fs, path::Path, rc::Rc};
 
-pub fn rust_verify<'params, V>(
-    params: &'params ParamsKZG<Bn256>,
-    vk: &'params VerifyingKey<G1Affine>,
+pub fn rust_verify(
+    params: &ParamsKZG<Bn256>,
+    vk: &VerifyingKey<G1Affine>,
     instances: &Vec<Vec<Fr>>,
     proof: &[u8],
 ) -> bool
-where
-    V: Verifier<
-        'params,
-        KZGCommitmentScheme<Bn256>,
-        Guard = GuardKZG<'params, Bn256>,
-        MSMAccumulator = DualMSM<'params, Bn256>,
-    >,
 {
     let instances = instances.iter().map(|instances| instances.as_slice()).collect_vec();
 
     let mut transcript = TranscriptReadBuffer::<_, G1Affine, _>::init(proof);
-    VerificationStrategy::<_, V>::finalize(
-        verify_proof::<_, V, _, EvmTranscript<_, _, _, _>, _>(
+    VerificationStrategy::<_, VerifierGWC<_>>::finalize(
+        verify_proof::<_, VerifierGWC<_>, _, EvmTranscript<_, _, _, _>, _>(
             params.verifier_params(),
             vk,
             AccumulatorStrategy::new(params.verifier_params()),
