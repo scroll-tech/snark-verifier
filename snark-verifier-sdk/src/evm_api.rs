@@ -92,6 +92,9 @@ where
         )
     };
     assert!(accept);
+    log::info!("gupeng - gen_evm_proof - accept = {}", accept);
+    log::info!("gupeng - gen_evm_proof - proof =\n{:?}", proof);
+    log::info!("gupeng - gen_evm_proof - instances =\n{:?}", instances);
 
     proof
 }
@@ -186,6 +189,9 @@ pub fn evm_verify(deployment_code: Vec<u8>, instances: Vec<Vec<Fr>>, proof: Vec<
 }
 
 pub fn verify_evm_proof(deployment_code: Vec<u8>, instances: Vec<Vec<Fr>>, proof: Vec<u8>) -> bool {
+    log::info!("gupeng - verify_evm_proof - proof =\n{:?}", proof);
+    log::info!("gupeng - verify_evm_proof - instances =\n{:?}", instances);
+
     let calldata = encode_calldata(&instances, &proof);
     verify_evm_calldata(deployment_code, calldata)
 }
