@@ -78,12 +78,13 @@ where
     #[cfg(feature = "display")]
     end_timer!(proof_time);
 
+    let vk = pk.get_vk();
     let accept = {
         let mut transcript = TranscriptReadBuffer::<_, G1Affine, _>::init(proof.as_slice());
         VerificationStrategy::<_, V>::finalize(
             verify_proof::<_, V, _, EvmTranscript<_, _, _, _>, _>(
                 params.verifier_params(),
-                pk.get_vk(),
+                vk,
                 AccumulatorStrategy::new(params.verifier_params()),
                 &[instances.as_slice()],
                 &mut transcript,
@@ -95,6 +96,7 @@ where
     log::info!("gupeng - gen_evm_proof - accept = {}", accept);
     log::info!("gupeng - gen_evm_proof - proof =\n{:?}", proof);
     log::info!("gupeng - gen_evm_proof - instances =\n{:?}", instances);
+    log::info!("gupeng - gen_evm_proof - vk =\n{:?}", vk);
 
     proof
 }
