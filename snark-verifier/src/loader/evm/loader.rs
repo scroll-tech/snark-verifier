@@ -58,9 +58,17 @@ pub struct EvmLoader {
     scalar_modulus: U256,
     code: RefCell<YulCode>,
     ptr: RefCell<usize>,
+    // memory: RefCell<HashMap<>>
     cache: RefCell<HashMap<String, usize>>,
     #[cfg(test)]
     gas_metering_ids: RefCell<Vec<String>>,
+    // debugging related fields
+    ec_points: RefCell<HashMap<usize, (U256, U256)>>, // cache ec points
+    scalars: RefCell<HashMap<usize, U256>>, // cache scalars
+    memory: RefCell<HashMap<usize, U256>>,
+    debugging: bool,
+    instances: Option<Vec<Vec<U256>>>,
+    proof: Option<Vec<u8>>,
 }
 
 fn hex_encode_u256(value: &U256) -> String {
@@ -88,6 +96,42 @@ impl EvmLoader {
             cache: Default::default(),
             #[cfg(test)]
             gas_metering_ids: RefCell::new(Vec::new()),
+            // debugging related fields
+            debugging: false,
+            ec_points: RefCell::new(HashMap::new()),
+            scalars: RefCell::new(HashMap::new()),
+            memory: RefCell::new(HashMap::new()),
+            instances: None,
+            proof: None,
+        })
+    }
+
+    pub fn new_in_debug<Base, Scalar>(instances: Vec<Vec<Scalar>>, proof: Vec<u8>) -> Rc<Self>
+    where
+        Base: PrimeField<Repr = [u8; 0x20]>,
+        Scalar: PrimeField<Repr = [u8; 32]>,
+    {
+        let base_modulus = modulus::<Base>();
+        let scalar_modulus = modulus::<Scalar>();
+        let code = YulCode::new();
+
+        Rc::new(Self {
+            base_modulus,
+            scalar_modulus,
+            code: RefCell::new(code),
+            ptr: Default::default(),
+            cache: Default::default(),
+            #[cfg(test)]
+            gas_metering_ids: RefCell::new(Vec::new()),
+            // debugging related fields
+            debugging: true,
+            ec_points: RefCell::new(HashMap::new()),
+            scalars: RefCell::new(HashMap::new()),
+            memory: RefCell::new(HashMap::new()),
+            instances: Some(
+                instances.into_iter().map(|instance| instance.into_iter().map(|inst| inst)).collect(),
+            ),
+            proof: Some(proof),
         })
     }
 
@@ -118,27 +162,52 @@ impl EvmLoader {
         self.code.borrow_mut()
     }
 
-    fn push(self: &Rc<Self>, scalar: &Scalar) -> String {
+    fn push(self: &Rc<Self>, scalar: &Scalar) -> (String, Option<U256>) {
         match scalar.value.clone() {
             Value::Constant(constant) => {
-                format!("{constant}")
+                (format!("{constant}"), Some(constant))
             }
             Value::Memory(ptr) => {
-                format!("mload({ptr:#x})")
+                (
+                    format!("mload({ptr:#x})"),
+                    match self.debugging {
+                        true => Some(self.scalars.borrow().get(&ptr).cloned().unwrap()),
+                        false => None,
+                    },
+                )
             }
             Value::Negated(value) => {
-                let v = self.push(&self.scalar(*value));
-                format!("sub(f_q, {v})")
+                let (v, actual_v) = self.push(&self.scalar(*value));
+
+                (format!("sub(f_q, {v})"), actual_v.map(|v| self.scalar_modulus - v))
             }
             Value::Sum(lhs, rhs) => {
-                let lhs = self.push(&self.scalar(*lhs));
-                let rhs = self.push(&self.scalar(*rhs));
-                format!("addmod({lhs}, {rhs}, f_q)")
+                let (lhs, lv) = self.push(&self.scalar(*lhs));
+                let (rhs, rv) = self.push(&self.scalar(*rhs));
+
+                (
+                    format!("addmod({lhs}, {rhs}, f_q)"),
+                    lv.zip(rv).map(|(lhs, rhs)| {
+                        let lhs = u256_to_fe::<Scalar>(lhs);
+                        let rhs = u256_to_fe::<Scalar>(rhs);
+
+                        fe_to_u256::<Scalar>(lhs + rhs)
+                    })
+                )
             }
             Value::Product(lhs, rhs) => {
-                let lhs = self.push(&self.scalar(*lhs));
-                let rhs = self.push(&self.scalar(*rhs));
-                format!("mulmod({lhs}, {rhs}, f_q)")
+                let (lhs, lv) = self.push(&self.scalar(*lhs));
+                let (rhs, rv) = self.push(&self.scalar(*rhs));
+
+                (
+                    format!("mulmod({lhs}, {rhs}, f_q)"),
+                    lv.zip(rv).map(|(lhs, rhs)| {
+                        let lhs = u256_to_fe::<Scalar>(lhs);
+                        let rhs = u256_to_fe::<Scalar>(rhs);
+
+                        fe_to_u256::<Scalar>(lhs * rhs)
+                    })
+                )
             }
         }
     }
@@ -147,6 +216,7 @@ impl EvmLoader {
     pub fn calldataload_scalar(self: &Rc<Self>, offset: usize) -> Scalar {
         let ptr = self.allocate(0x20);
         let code = format!("mstore({ptr:#x}, mod(calldataload({offset:#x}), f_q))");
+        // TODO
         self.code.borrow_mut().runtime_append(code);
         self.scalar(Value::Memory(ptr))
     }
@@ -267,6 +337,13 @@ impl EvmLoader {
             Value::Constant((x, y)) => {
                 let x_ptr = ptr;
                 let y_ptr = ptr + 0x20;
+
+                if self.debugging {
+                    let (old_x, old_y) = self.ec_points.borrow_mut().insert(ptr, (x, y));
+                    assert_eq!(old_x, x);
+                    assert_eq!(old_y, y);
+                }
+
                 let x = hex_encode_u256(&x);
                 let y = hex_encode_u256(&y);
                 let code = format!(
@@ -278,6 +355,13 @@ impl EvmLoader {
             Value::Memory(src_ptr) => {
                 let x_ptr = ptr;
                 let y_ptr = ptr + 0x20;
+
+                if self.debugging {
+                    let (src_x, src_y) = self.ec_points.borrow().get(&src_ptr).cloned().unwrap();
+                    // store new ec point
+                    self.ec_points.borrow_mut().insert(ptr, (src_x, src_y));
+                }
+
                 let src_x = src_ptr;
                 let src_y = src_ptr + 0x20;
                 let code = format!(
@@ -454,6 +538,17 @@ impl EcPoint {
         self.value.clone()
     }
 
+    pub(crate) fn real_value(&self) -> Option<(U256, U256)> {
+        if self.loader.debugging {
+            match self.value {
+                Value::Memory(ptr) => self.loader.ec_points.borrow().get(&ptr).cloned(),
+                _ => unreachable!("ec point's value must be Memory enum"),
+            }
+        } else {
+            None
+        }
+    }
+
     pub(crate) fn ptr(&self) -> usize {
         match self.value {
             Value::Memory(ptr) => ptr,
@@ -499,6 +594,16 @@ impl Scalar {
 
     pub(crate) fn value(&self) -> Value<U256> {
         self.value.clone()
+    }
+
+    pub(crate) fn real_value(&self) -> Option<U256> {
+        if self.loader.debugging {
+            match self.value {
+                Value::Memory(ptr) => ,
+            }
+        } else {
+            None
+        }
     }
 
     pub(crate) fn is_const(&self) -> bool {

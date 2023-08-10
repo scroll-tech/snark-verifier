@@ -177,6 +177,7 @@ where
             .cloned()
             .chain(if self.buf.len() == 0x20 { Some(1) } else { None })
             .collect_vec();
+        // use keccak as the hasher
         let hash: [u8; 32] = Keccak256::digest(data).into();
         self.buf = hash.to_vec();
         u256_to_fe(U256::from_big_endian(hash.as_slice()))
@@ -286,6 +287,7 @@ where
     }
 }
 
+// used by halo2_proofs to create a proof that can be verified by EVM contract
 impl<C, S> halo2_proofs::transcript::Transcript<C, ChallengeEvm<C>>
     for EvmTranscript<C, NativeLoader, S, Vec<u8>>
 where

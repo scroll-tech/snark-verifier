@@ -121,6 +121,8 @@ impl Circuit<Fr> for StandardPlonk {
             |mut region| {
                 #[cfg(feature = "halo2-pse")]
                 {
+                    // row 0: -a + instance = 0
+                    // row 1: a + 2*b + 3*c + 4*a*b + 5 = 0
                     region.assign_advice(|| "", config.a, 0, || Value::known(self.0))?;
                     region.assign_fixed(|| "", config.q_a, 0, || Value::known(-Fr::one()))?;
 
@@ -140,6 +142,9 @@ impl Circuit<Fr> for StandardPlonk {
                         )?;
                     }
 
+                    // row 2: a = 1
+                    // row 3: b = a2 = 1
+                    // row 4: c = a2 = 1
                     let a = region.assign_advice(|| "", config.a, 2, || Value::known(Fr::one()))?;
                     a.copy_advice(|| "", &mut region, config.b, 3)?;
                     a.copy_advice(|| "", &mut region, config.c, 4)?;
@@ -236,6 +241,10 @@ fn gen_evm_verifier(
     let svk = params.get_g()[0].into();
     let dk = (params.g2(), params.s_g2()).into();
     let protocol = compile(params, vk, Config::kzg().with_num_instance(num_instance.clone()));
+    // qa, qb, qc, qm, q_const,
+    log::info!("protocol: {:?}", protocol.preprocessed.len());
+    log::info!("evals: {:?}", protocol.evaluations);
+    log::info!("queries: {:?}", protocol.queries);
 
     let loader = EvmLoader::new::<Fq, Fr>();
     let protocol = protocol.loaded(&loader);
@@ -273,7 +282,35 @@ fn evm_verify(deployment_code: Vec<u8>, instances: Vec<Vec<Fr>>, proof: Vec<u8>)
     success
 }
 
+fn evm_verify_local(instances: Vec<Vec<Fr>>, proof: Vec<u8>) -> bool {
+    let svk = params.get_g()[0].into();
+    let dk = (params.g2(), params.s_g2()).into();
+    let protocol = compile(params, vk, Config::kzg().with_num_instance(num_instance.clone()));
+    // qa, qb, qc, qm, q_const,
+    log::info!("protocol: {:?}", protocol.preprocessed.len());
+    log::info!("evals: {:?}", protocol.evaluations);
+    log::info!("queries: {:?}", protocol.queries);
+
+    let loader = EvmLoader::new_in_debug::<Fq, Fr>(instance, proof);
+    let protocol = protocol.loaded(&loader);
+
+    let mut transcript = EvmTranscript::<_, Rc<EvmLoader>, _, _>::new(&loader);
+
+    let instances = transcript.load_instances(num_instance);
+
+    let proof = Plonk::read_proof(&svk, &protocol, &instances, &mut transcript);
+
+    // println!("svk: {:?}", svk);
+    // println!("dk: {:?}", svk);
+    // println!("protocol {:?}", protocol);
+    // println!("instances: {:?}", instances);
+    // println!("proof {:?}", proof);
+
+    Plonk::verify(&svk, &dk, &protocol, &instances, &proof);
+}
+
 fn main() {
+    env_logger::init();
     let params = gen_srs(8);
 
     let circuit = StandardPlonk::rand(OsRng);
