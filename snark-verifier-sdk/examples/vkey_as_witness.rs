@@ -95,6 +95,7 @@ mod application {
     impl Circuit<Fr> for StandardPlonk {
         type Config = StandardPlonkConfig;
         type FloorPlanner = SimpleFloorPlanner;
+        type Params = ();
 
         fn without_witnesses(&self) -> Self {
             Self(Fr::zero(), self.1)
@@ -113,9 +114,9 @@ mod application {
             layouter.assign_region(
                 || "",
                 |mut region| {
-                    region.assign_advice(config.a, 0, Value::known(self.0));
-                    region.assign_fixed(config.q_a, 0, -Fr::one());
-                    region.assign_advice(config.a, 1, Value::known(-Fr::from(5u64)));
+                    region.assign_advice(|| "", config.a, 0, || Value::known(self.0));
+                    region.assign_fixed(|| "", config.q_a, 0, || Value::known(-Fr::one()));
+                    region.assign_advice(|| "", config.a, 1, || Value::known(-Fr::from(5u64)));
                     if self.1 != ComputeFlag::SkipFixed {
                         for (idx, column) in (1..).zip([
                             config.q_a,
@@ -124,13 +125,18 @@ mod application {
                             config.q_ab,
                             config.constant,
                         ]) {
-                            region.assign_fixed(column, 1, Fr::from(idx as u64));
+                            region.assign_fixed(
+                                || "",
+                                column,
+                                1,
+                                || Value::known(Fr::from(idx as u64)),
+                            );
                         }
                     }
-                    let a = region.assign_advice(config.a, 2, Value::known(Fr::one()));
+                    let a = region.assign_advice(|| "", config.a, 2, || Value::known(Fr::one()))?;
                     if self.1 != ComputeFlag::SkipCopy {
-                        a.copy_advice(&mut region, config.b, 3);
-                        a.copy_advice(&mut region, config.c, 4);
+                        a.copy_advice(|| "", &mut region, config.b, 3);
+                        a.copy_advice(|| "", &mut region, config.c, 4);
                     }
 
                     Ok(())

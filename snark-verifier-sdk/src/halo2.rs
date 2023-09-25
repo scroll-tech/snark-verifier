@@ -299,6 +299,7 @@ where
     impl<F: Field, C: CircuitExt<F>> Circuit<F> for CsProxy<F, C> {
         type Config = C::Config;
         type FloorPlanner = C::FloorPlanner;
+        type Params = ();
 
         fn without_witnesses(&self) -> Self {
             CsProxy(PhantomData)

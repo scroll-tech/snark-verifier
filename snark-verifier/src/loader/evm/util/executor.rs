@@ -6,10 +6,7 @@ use revm::{
 /// Deploy contract and then call with calldata.
 /// Returns gas_used of call to deployed contract if both transactions are successful.
 pub fn deploy_and_call(deployment_code: Vec<u8>, calldata: Vec<u8>) -> Result<u64, String> {
-    let mut evm = EVM {
-        env: Default::default(),
-        db: Some(InMemoryDB::default()),
-    };
+    let mut evm = EVM { env: Default::default(), db: Some(InMemoryDB::default()) };
 
     evm.env.tx = TxEnv {
         gas_limit: u64::MAX,

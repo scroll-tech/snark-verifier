@@ -27,8 +27,8 @@ pub struct Bdfg21;
 impl<M, L> PolynomialCommitmentScheme<M::G1Affine, L> for KzgAs<M, Bdfg21>
 where
     M: MultiMillerLoop,
-    M::G1Affine: CurveAffine<ScalarExt = M::Fr, CurveExt = M::G1>,
-    M::Fr: Ord,
+    M::G1Affine: CurveAffine<ScalarExt = M::Scalar, CurveExt = M::G1>,
+    M::Scalar: Ord,
     L: Loader<M::G1Affine>,
 {
     type VerifyingKey = KzgSuccinctVerifyingKey<M::G1Affine>;

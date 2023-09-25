@@ -12,7 +12,7 @@ pub use halo2_curves::{
 };
 use num_bigint::BigUint;
 use num_traits::One;
-pub use pairing::MillerLoopResult;
+pub use halo2_curves::pairing::MillerLoopResult;
 use serde::{Deserialize, Serialize};
 use std::{
     cmp::Ordering,
@@ -22,9 +22,9 @@ use std::{
 };
 
 /// [`halo2_curves::pairing::MultiMillerLoop`] with [`std::fmt::Debug`].
-pub trait MultiMillerLoop: pairing::MultiMillerLoop + Debug {}
+pub trait MultiMillerLoop: halo2_curves::pairing::MultiMillerLoop + Debug {}
 
-impl<M: pairing::MultiMillerLoop + Debug> MultiMillerLoop for M {}
+impl<M: halo2_curves::pairing::MultiMillerLoop + Debug> MultiMillerLoop for M {}
 
 /// Trait for fields that can implement Poseidon hash
 pub trait FieldExt: PrimeField + FromUniformBytes<64> + Ord {}

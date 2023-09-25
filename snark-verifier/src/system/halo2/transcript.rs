@@ -10,7 +10,7 @@ use crate::{
     Error,
 };
 use halo2_proofs::transcript::{Blake2bRead, Blake2bWrite, Challenge255};
-use pairing::group::ff::FromUniformBytes;
+use ff::FromUniformBytes;
 use std::io::{Read, Write};
 
 #[cfg(feature = "loader_evm")]
