@@ -6,7 +6,7 @@ pub mod msm;
 pub mod poly;
 pub mod transcript;
 
-pub(crate) use itertools::Itertools;
+pub(crate) use itertools::{izip, Itertools};
 
 #[cfg(feature = "parallel")]
 pub(crate) use rayon::current_num_threads;

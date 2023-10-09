@@ -31,8 +31,9 @@ fn generate_circuit(k: u32, fill: bool) -> Snark {
 
     let x = ctx.load_witness(Fr::from(14));
     if fill {
-        for _ in 0..2 << k {
-            range.gate().add(ctx, x, x);
+        for _ in 0..2 << (k - 1) {
+            let y = range.gate().add(ctx, x, x);
+            range.range_check(ctx, y, 5);
         }
     }
 
