@@ -26,7 +26,7 @@ use halo2_proofs::{
 };
 use itertools::Itertools;
 use lazy_static::lazy_static;
-use rand::{rngs::StdRng, Rng, SeedableRng};
+use rand::Rng;
 use snark_verifier::{
     cost::CostEstimation,
     loader::native::NativeLoader,
@@ -39,11 +39,7 @@ use snark_verifier::{
     util::transcript::TranscriptWrite,
     verifier::plonk::PlonkProof,
 };
-use std::{
-    fs::{self, File},
-    marker::PhantomData,
-    path::Path,
-};
+use std::{fs, marker::PhantomData, path::Path};
 
 pub mod aggregation;
 

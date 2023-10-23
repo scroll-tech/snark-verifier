@@ -13,6 +13,8 @@ use halo2_proofs::{
     SerdeFormat,
 };
 use itertools::Itertools;
+
+#[cfg(feature = "halo2-axiom")]
 use serde::{Deserialize, Serialize};
 pub use snark_verifier::loader::native::NativeLoader;
 use snark_verifier::{

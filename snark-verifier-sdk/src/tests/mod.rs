@@ -11,7 +11,7 @@ mod evm_verifier;
 mod single_layer_aggregation;
 mod test_circuit_1;
 mod test_circuit_2;
-// mod two_layer_aggregation;
+mod two_layer_aggregation;
 
 #[derive(Clone, Copy)]
 pub struct StandardPlonkConfig {

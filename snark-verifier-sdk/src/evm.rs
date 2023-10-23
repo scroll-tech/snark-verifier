@@ -19,7 +19,7 @@ use halo2_base::halo2_proofs::{
     transcript::{TranscriptReadBuffer, TranscriptWriterBuffer},
 };
 use itertools::Itertools;
-use rand::{rngs::StdRng, Rng, SeedableRng};
+use rand::Rng;
 pub use snark_verifier::loader::evm::encode_calldata;
 use snark_verifier::{
     loader::evm::{compile_solidity, deploy_and_call, EvmLoader},

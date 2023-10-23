@@ -1,16 +1,19 @@
 use super::TestCircuit1;
 use crate::{
-    aggregation::aggregation_circuit::AggregationCircuit,
-    evm_api::{evm_verify, gen_evm_proof_shplonk, gen_evm_verifier},
-    halo2_api::{gen_pk, gen_snark_shplonk},
-    CircuitExt,
+    evm::{evm_verify, gen_evm_proof_shplonk, gen_evm_verifier},
+    gen_pk,
+    halo2::{
+        aggregation::{AggregationCircuit, AggregationConfigParams, VerifierUniversality},
+        gen_snark_shplonk,
+    },
+    CircuitExt, SHPLONK,
 };
 use ark_std::test_rng;
-use halo2_base::halo2_proofs;
+use halo2_base::{gates::circuit::CircuitBuilderStage, halo2_proofs};
 use halo2_proofs::{halo2curves::bn256::Bn256, poly::commitment::Params};
 use snark_verifier::{
     loader::halo2::halo2_ecc::halo2_base::utils::fs::gen_srs,
-    pcs::kzg::{Bdfg21, Kzg},
+    pcs::kzg::{Bdfg21, KzgAs},
 };
 use std::path::Path;
 
@@ -45,23 +48,64 @@ fn test_two_layer_aggregation_evm_verification() {
     println!("finished snark generation");
 
     // layer 2, first aggregation
-    let first_agg_circuit = AggregationCircuit::new(&params_outer, snarks, &mut rng);
-    let pk_outer = gen_pk(&params_outer, &first_agg_circuit, None);
-    println!("finished outer pk generation");
-    let first_agg_proof = gen_snark_shplonk(
-        &params_outer,
-        &pk_outer,
-        first_agg_circuit.clone(),
-        &mut rng,
-        Some(Path::new("data/outer.snark")),
-    );
-    println!("finished outer proof generation");
+    let first_agg_proof = {
+        let mut first_agg_circuit = AggregationCircuit::new::<SHPLONK>(
+            CircuitBuilderStage::Keygen,
+            AggregationConfigParams { degree: k_agg, lookup_bits: 18, ..Default::default() },
+            &params_outer,
+            snarks.clone(),
+            VerifierUniversality::PreprocessedAsWitness,
+        );
+        let first_agg_config = first_agg_circuit.calculate_params(Some(10));
+
+        let pk_outer = gen_pk(&params_outer, &first_agg_circuit, None);
+        let break_points = first_agg_circuit.break_points();
+
+        println!("finished outer pk generation");
+
+        let first_agg_circuit = AggregationCircuit::new::<SHPLONK>(
+            CircuitBuilderStage::Prover,
+            first_agg_config,
+            &params_outer,
+            snarks,
+            VerifierUniversality::PreprocessedAsWitness,
+        )
+        .use_break_points(break_points.clone());
+
+        let first_agg_proof = gen_snark_shplonk(
+            &params_outer,
+            &pk_outer,
+            first_agg_circuit.clone(),
+            &mut rng,
+            Some(Path::new("data/outer.snark")),
+        );
+        println!("finished outer proof generation");
+        first_agg_proof
+    };
 
     // layer 3, second aggregation
-    let second_agg_circuit = AggregationCircuit::new(&params_outer, [first_agg_proof], &mut rng);
-    let pk_agg = gen_pk(&params_outer, &second_agg_circuit, None);
+    let mut second_agg_circuit = AggregationCircuit::new::<SHPLONK>(
+        CircuitBuilderStage::Keygen,
+        AggregationConfigParams { degree: k_agg, lookup_bits: 18, ..Default::default() },
+        &params_outer,
+        [first_agg_proof.clone()],
+        VerifierUniversality::PreprocessedAsWitness,
+    );
+    let second_agg_config = second_agg_circuit.calculate_params(Some(10));
 
-    let deployment_code = gen_evm_verifier::<AggregationCircuit, Kzg<Bn256, Bdfg21>>(
+    let pk_agg = gen_pk(&params_outer, &second_agg_circuit, None);
+    let break_points = second_agg_circuit.break_points();
+
+    let second_agg_circuit = AggregationCircuit::new::<SHPLONK>(
+        CircuitBuilderStage::Prover,
+        second_agg_config,
+        &params_outer,
+        [first_agg_proof],
+        VerifierUniversality::PreprocessedAsWitness,
+    )
+    .use_break_points(break_points.clone());
+
+    let deployment_code = gen_evm_verifier::<AggregationCircuit, KzgAs<Bn256, Bdfg21>>(
         &params_outer,
         pk_agg.get_vk(),
         second_agg_circuit.num_instance(),
