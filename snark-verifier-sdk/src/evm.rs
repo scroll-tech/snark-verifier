@@ -19,7 +19,7 @@ use halo2_base::halo2_proofs::{
     transcript::{TranscriptReadBuffer, TranscriptWriterBuffer},
 };
 use itertools::Itertools;
-use rand::{rngs::StdRng, SeedableRng};
+use rand::{rngs::StdRng, Rng, SeedableRng};
 pub use snark_verifier::loader::evm::encode_calldata;
 use snark_verifier::{
     loader::evm::{compile_solidity, deploy_and_call, EvmLoader},
@@ -38,6 +38,7 @@ pub fn gen_evm_proof<'params, C, P, V>(
     pk: &'params ProvingKey<G1Affine>,
     circuit: C,
     instances: Vec<Vec<Fr>>,
+    rng: &mut (impl Rng + Send),
 ) -> Vec<u8>
 where
     C: Circuit<Fr>,
@@ -53,7 +54,6 @@ where
 
     #[cfg(feature = "display")]
     let proof_time = start_timer!(|| "Create EVM proof");
-    let rng = StdRng::from_entropy();
     let proof = {
         let mut transcript = TranscriptWriterBuffer::<_, G1Affine, _>::init(Vec::new());
         create_proof::<KZGCommitmentScheme<Bn256>, P, _, _, EvmTranscript<_, _, _, _>, _>(
@@ -93,8 +93,9 @@ pub fn gen_evm_proof_gwc<'params, C: Circuit<Fr>>(
     pk: &'params ProvingKey<G1Affine>,
     circuit: C,
     instances: Vec<Vec<Fr>>,
+    rng: &mut (impl Rng + Send),
 ) -> Vec<u8> {
-    gen_evm_proof::<C, ProverGWC<_>, VerifierGWC<_>>(params, pk, circuit, instances)
+    gen_evm_proof::<C, ProverGWC<_>, VerifierGWC<_>>(params, pk, circuit, instances, rng)
 }
 
 pub fn gen_evm_proof_shplonk<'params, C: Circuit<Fr>>(
@@ -102,8 +103,9 @@ pub fn gen_evm_proof_shplonk<'params, C: Circuit<Fr>>(
     pk: &'params ProvingKey<G1Affine>,
     circuit: C,
     instances: Vec<Vec<Fr>>,
+    rng: &mut (impl Rng + Send),
 ) -> Vec<u8> {
-    gen_evm_proof::<C, ProverSHPLONK<_>, VerifierSHPLONK<_>>(params, pk, circuit, instances)
+    gen_evm_proof::<C, ProverSHPLONK<_>, VerifierSHPLONK<_>>(params, pk, circuit, instances, rng)
 }
 
 pub trait EvmKzgAccumulationScheme = PolynomialCommitmentScheme<

@@ -29,6 +29,8 @@ use std::{
 pub mod evm;
 #[cfg(feature = "loader_halo2")]
 pub mod halo2;
+#[cfg(test)]
+mod tests;
 
 pub const LIMBS: usize = 3;
 pub const BITS: usize = 88;

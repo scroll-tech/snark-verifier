@@ -116,7 +116,12 @@ mod application {
                         config.q_ab,
                         config.constant,
                     ]) {
-                        region.assign_fixed(|| "", column, 1, ||Value::known(Fr::from(idx as u64)));
+                        region.assign_fixed(
+                            || "",
+                            column,
+                            1,
+                            || Value::known(Fr::from(idx as u64)),
+                        );
                     }
                     let a = region.assign_advice(|| "", config.a, 2, || Value::known(Fr::one()))?;
                     a.copy_advice(|| "", &mut region, config.b, 3);

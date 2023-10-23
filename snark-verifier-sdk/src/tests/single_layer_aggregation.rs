@@ -1,16 +1,16 @@
 use super::{TestCircuit1, TestCircuit2};
 use crate::{
-    aggregation::aggregation_circuit::AggregationCircuit,
-    evm_api::{evm_verify, gen_evm_proof_shplonk, gen_evm_verifier},
-    halo2_api::{gen_pk, gen_snark_shplonk},
-    CircuitExt,
+    evm::{evm_verify, gen_evm_proof_shplonk, gen_evm_verifier},
+    gen_pk,
+    halo2::{gen_snark_shplonk, aggregation::{AggregationCircuit, AggregationConfigParams, VerifierUniversality}},
+    CircuitExt, SHPLONK,
 };
 use ark_std::test_rng;
-use halo2_base::halo2_proofs;
+use halo2_base::{halo2_proofs, gates::circuit::CircuitBuilderStage};
 use halo2_proofs::{halo2curves::bn256::Bn256, poly::commitment::Params};
 use snark_verifier::{
     loader::halo2::halo2_ecc::halo2_base::utils::fs::gen_srs,
-    pcs::kzg::{Bdfg21, Kzg},
+    pcs::kzg::{Bdfg21, KzgAs},
 };
 use std::path::Path;
 
@@ -66,9 +66,21 @@ fn test_shplonk_then_sphplonk_with_evm_verification() {
 
     // aggregation circuit
     let snarks = vec![snarks_1, snarks_2, snarks_3];
-    let agg_circuit = AggregationCircuit::new(&params_outer, snarks, &mut rng);
+    // let agg_circuit = AggregationCircuit::new(&params_outer, snarks, &mut rng);
+  
+    let mut agg_circuit = AggregationCircuit::new::<SHPLONK>(
+        CircuitBuilderStage::Keygen,
+        AggregationConfigParams { degree: k, lookup_bits:20, ..Default::default() },
+        &params_outer,
+        snarks,
+        VerifierUniversality::PreprocessedAsWitness,
+    );
+    let _agg_config = agg_circuit.calculate_params(Some(10));
+
     let pk_outer = gen_pk(&params_outer, &agg_circuit, Some(Path::new("data/outer.pkey")));
-    println!("finished outer pk generation");
+    let _break_points = agg_circuit.break_points();
+
+   println!("finished outer pk generation");
     let instances = agg_circuit.instances();
     let proof = gen_evm_proof_shplonk(
         &params_outer,
@@ -79,7 +91,7 @@ fn test_shplonk_then_sphplonk_with_evm_verification() {
     );
     println!("finished aggregation generation");
 
-    let deployment_code = gen_evm_verifier::<AggregationCircuit, Kzg<Bn256, Bdfg21>>(
+    let deployment_code = gen_evm_verifier::<AggregationCircuit, KzgAs<Bn256, Bdfg21>>(
         &params_outer,
         pk_outer.get_vk(),
         agg_circuit.num_instance(),
