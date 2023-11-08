@@ -10,7 +10,8 @@ use crate::halo2_proofs::{
     transcript::{EncodedChallenge, TranscriptReadBuffer, TranscriptWriterBuffer},
 };
 use crate::util::arithmetic::CurveAffine;
-use halo2_proofs::ff::FromUniformBytes;
+use ff::{PrimeField, WithSmallOrderMulGroup};
+use halo2_base::utils::ScalarField;
 use rand_chacha::rand_core::RngCore;
 use std::{fs, io::Cursor};
 
@@ -47,7 +48,7 @@ pub fn create_proof_checked<'a, S, C, P, V, VS, TW, TR, EC, R>(
 ) -> Vec<u8>
 where
     S: CommitmentScheme,
-    S::Scalar: FromUniformBytes<64> + Ord,
+    S::Scalar: ScalarField + PrimeField<Repr = [u8; 32]> + WithSmallOrderMulGroup<3>,
     S::ParamsVerifier: 'a,
     C: Circuit<S::Scalar>,
     P: Prover<'a, S>,

@@ -1,6 +1,5 @@
 use crate::{
     cost::{Cost, CostEstimation},
-    halo2_proofs::ff::PrimeField,
     loader::{LoadedScalar, Loader, ScalarLoader},
     pcs::{
         kzg::{Kzg, KzgAccumulator, KzgSuccinctVerifyingKey},
@@ -13,6 +12,7 @@ use crate::{
         Itertools,
     },
 };
+use ff::PrimeField;
 use std::{
     collections::{BTreeMap, BTreeSet},
     marker::PhantomData,

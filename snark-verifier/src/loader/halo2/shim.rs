@@ -1,9 +1,9 @@
-use crate::halo2_proofs::ff::PrimeField;
 use crate::halo2_proofs::{
     circuit::{Cell, Value},
     plonk::Error,
 };
 use crate::util::arithmetic::CurveAffine;
+use ff::PrimeField;
 use std::{fmt::Debug, ops::Deref};
 
 pub trait Context: Debug {
@@ -141,10 +141,11 @@ mod halo2_lib {
         loader::halo2::{Context, EccInstructions, IntegerInstructions},
         util::arithmetic::{CurveAffine, Field},
     };
+    use ff::PrimeField;
     use halo2_base::{
         self,
         gates::{flex_gate::FlexGateConfig, GateInstructions, RangeInstructions},
-        utils::PrimeField,
+        utils::ScalarField,
         AssignedValue,
         QuantumCell::{Constant, Existing, Witness},
     };
@@ -158,7 +159,7 @@ mod halo2_lib {
     type AssignedInteger<C> = CRTInteger<<C as CurveAffine>::ScalarExt>;
     type AssignedEcPoint<C> = EcPoint<<C as CurveAffine>::ScalarExt, AssignedInteger<C>>;
 
-    impl<'a, F: PrimeField> Context for halo2_base::Context<'a, F> {
+    impl<'a, F: ScalarField> Context for halo2_base::Context<'a, F> {
         fn constrain_equal(&mut self, lhs: Cell, rhs: Cell) -> Result<(), Error> {
             #[cfg(feature = "halo2-axiom")]
             self.region.constrain_equal(&lhs, &rhs);
@@ -172,7 +173,7 @@ mod halo2_lib {
         }
     }
 
-    impl<'a, F: PrimeField> IntegerInstructions<'a, F> for FlexGateConfig<F> {
+    impl<'a, F: ScalarField> IntegerInstructions<'a, F> for FlexGateConfig<F> {
         type Context = halo2_base::Context<'a, F>;
         type AssignedCell = AssignedValue<F>;
         type AssignedInteger = AssignedValue<F>;
@@ -205,7 +206,7 @@ mod halo2_lib {
                 a.push(Constant(constant));
                 b.push(Constant(F::ONE));
             }
-            a.extend(values.iter().map(|(_, a)| Existing(a)));
+            a.extend(values.iter().map(|(_, a)| Existing(*a.deref())));
             b.extend(values.iter().map(|(c, _)| Constant(*c)));
             Ok(self.inner_product(ctx, a, b))
         }
@@ -224,7 +225,7 @@ mod halo2_lib {
                 0 => self.assign_constant(ctx, constant),
                 _ => Ok(self.sum_products_with_coeff_and_var(
                     ctx,
-                    values.iter().map(|(c, a, b)| (*c, Existing(a), Existing(b))),
+                    values.iter().map(|(c, a, b)| (*c, Existing(*a.deref()), Existing(*b.deref()))),
                     Constant(constant),
                 )),
             }
@@ -236,7 +237,7 @@ mod halo2_lib {
             a: &Self::AssignedInteger,
             b: &Self::AssignedInteger,
         ) -> Result<Self::AssignedInteger, Error> {
-            Ok(GateInstructions::sub(self, ctx, Existing(a), Existing(b)))
+            Ok(GateInstructions::sub(self, ctx, Existing(*a), Existing(*b)))
         }
 
         fn neg(
@@ -244,7 +245,7 @@ mod halo2_lib {
             ctx: &mut Self::Context,
             a: &Self::AssignedInteger,
         ) -> Result<Self::AssignedInteger, Error> {
-            Ok(GateInstructions::neg(self, ctx, Existing(a)))
+            Ok(GateInstructions::neg(self, ctx, Existing(*a)))
         }
 
         fn invert(
@@ -255,7 +256,7 @@ mod halo2_lib {
             // make sure scalar != 0
             let is_zero = self.is_zero(ctx, a);
             self.assert_is_const(ctx, &is_zero, F::ZERO);
-            Ok(GateInstructions::div_unsafe(self, ctx, Constant(F::ONE), Existing(a)))
+            Ok(GateInstructions::div_unsafe(self, ctx, Constant(F::ONE), Existing(*a)))
         }
 
         fn assert_equal(
@@ -271,8 +272,8 @@ mod halo2_lib {
 
     impl<'a, C: CurveAffineExt> EccInstructions<'a, C> for BaseFieldEccChip<C>
     where
-        C::ScalarExt: PrimeField,
-        C::Base: PrimeField,
+        C::ScalarExt: ScalarField + PrimeField<Repr = [u8; 32]>,
+        C::Base: ScalarField + PrimeField<Repr = [u8; 32]>,
     {
         type Context = halo2_base::Context<'a, C::Scalar>;
         type ScalarChip = FlexGateConfig<C::Scalar>;
@@ -325,7 +326,9 @@ mod halo2_lib {
                 let constant = EccInstructions::<C>::assign_constant(self, ctx, constant).unwrap();
                 Some(constant)
             };
-            Ok(self.sum::<C>(ctx, constant.iter().chain(values.iter().map(Deref::deref))))
+            let values = constant.iter().chain(values.iter().map(Deref::deref)).cloned();
+
+            Ok(self.sum::<C>(ctx, values))
         }
 
         fn variable_base_msm(

@@ -1,4 +1,3 @@
-use crate::halo2_proofs::ff::PrimeField;
 use crate::halo2_proofs::{
     plonk::{self, Any, ConstraintSystem, FirstPhase, SecondPhase, ThirdPhase, VerifyingKey},
     poly::{self, commitment::Params},
@@ -14,7 +13,8 @@ use crate::{
     },
     Protocol,
 };
-use halo2_proofs::ff::FromUniformBytes;
+use ff::FromUniformBytes;
+use ff::PrimeField;
 use num_integer::Integer;
 use std::{io, iter, mem::size_of};
 

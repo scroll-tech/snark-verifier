@@ -3,7 +3,7 @@ use crate::halo2_proofs::{
     plonk::{Advice, Circuit, Column, ConstraintSystem, Error, Fixed, Instance},
     poly::Rotation,
 };
-use halo2_proofs::ff::PrimeField;
+use ff::PrimeField;
 use rand::RngCore;
 
 #[allow(dead_code)]

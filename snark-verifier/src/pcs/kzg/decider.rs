@@ -21,7 +21,7 @@ impl<M: MultiMillerLoop> From<(M::G2Affine, M::G2Affine)> for KzgDecidingKey<M> 
 }
 
 mod native {
-    use halo2_proofs::ff::PrimeField;
+    use ff::PrimeField;
 
     use crate::{
         loader::native::NativeLoader,

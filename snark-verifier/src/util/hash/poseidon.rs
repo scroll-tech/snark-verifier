@@ -3,8 +3,8 @@ use crate::{
     loader::{LoadedScalar, ScalarLoader},
     util::Itertools,
 };
-use halo2_proofs::curves::serde::SerdeObject;
-use halo2_proofs::ff::{FromUniformBytes, PrimeField};
+use ff::{FromUniformBytes, PrimeField};
+use halo2_proofs::halo2curves::serde::SerdeObject;
 use std::{iter, marker::PhantomData, mem};
 
 #[derive(Clone)]

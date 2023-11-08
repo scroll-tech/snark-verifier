@@ -1,6 +1,6 @@
 use crate::halo2_proofs::poly::kzg::commitment::ParamsKZG;
 use crate::util::arithmetic::MultiMillerLoop;
-use halo2_proofs::ff::PrimeField;
+use ff::PrimeField;
 use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
 
 mod native;

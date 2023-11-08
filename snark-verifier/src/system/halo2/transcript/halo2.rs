@@ -13,8 +13,8 @@ use crate::{
     },
     Error,
 };
-use halo2_proofs::curves::serde::SerdeObject;
-use halo2_proofs::ff::FromUniformBytes;
+use ff::FromUniformBytes;
+use halo2_proofs::halo2curves::serde::SerdeObject;
 use halo2_proofs::{circuit::Value, transcript::EncodedChallenge};
 use std::{
     io::{self, Read, Write},
@@ -318,7 +318,8 @@ impl<C: CurveAffine> EncodedChallenge<C> for ChallengeScalar<C> {
 
 impl<C: CurveAffine, S, const T: usize, const RATE: usize, const R_F: usize, const R_P: usize>
     halo2_proofs::transcript::Transcript<C, ChallengeScalar<C>>
-    for PoseidonTranscript<C, NativeLoader, S, T, RATE, R_F, R_P> where 
+    for PoseidonTranscript<C, NativeLoader, S, T, RATE, R_F, R_P>
+where
     C::ScalarExt: SerdeObject + FromUniformBytes<64>,
 {
     fn squeeze_challenge(&mut self) -> ChallengeScalar<C> {
@@ -423,13 +424,14 @@ where
 mod halo2_lib {
     use crate::halo2_curves::CurveAffineExt;
     use crate::system::halo2::transcript::halo2::NativeEncoding;
-    use halo2_base::utils::PrimeField;
+    use ff::PrimeField;
+    use halo2_base::utils::ScalarField;
     use halo2_ecc::ecc::BaseFieldEccChip;
 
     impl<'a, C: CurveAffineExt> NativeEncoding<'a, C> for BaseFieldEccChip<C>
     where
-        C::Scalar: PrimeField,
-        C::Base: PrimeField,
+        C::ScalarExt: ScalarField + PrimeField<Repr = [u8; 32]>,
+        C::Base: ScalarField + PrimeField<Repr = [u8; 32]>,
     {
         fn encode(
             &self,
