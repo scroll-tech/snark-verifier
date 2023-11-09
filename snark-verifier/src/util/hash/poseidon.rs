@@ -1,3 +1,5 @@
+use halo2_base::halo2_proofs::halo2curves::ff::PrimeField;
+
 use crate::{
     loader::{LoadedScalar, ScalarLoader},
     poseidon::{
@@ -8,20 +10,21 @@ use crate::{
 use std::{iter, marker::PhantomData, mem};
 
 #[derive(Clone, Debug)]
-struct State<F: FieldExt, L, const T: usize, const RATE: usize> {
+struct State<F: PrimeField, L, const T: usize, const RATE: usize> {
     inner: [L; T],
     _marker: PhantomData<F>,
 }
 
 // the transcript hash implementation is the one suggested in the original paper https://eprint.iacr.org/2019/458.pdf
 // another reference implementation is https://github.com/privacy-scaling-explorations/halo2wrong/tree/master/transcript/src
-impl<F: FieldExt, L: LoadedScalar<F>, const T: usize, const RATE: usize> State<F, L, T, RATE> {
+impl<F: PrimeField, L: LoadedScalar<F>, const T: usize, const RATE: usize> State<F, L, T, RATE> {
     fn new(inner: [L; T]) -> Self {
         Self { inner, _marker: PhantomData }
     }
 
+    #[allow(dead_code)]
     fn default(loader: &L::Loader) -> Self {
-        let mut default_state = [F::zero(); T];
+        let mut default_state = [F::ZERO; T];
         // from Section 4.2 of https://eprint.iacr.org/2019/458.pdf
         // • Variable-Input-Length Hashing. The capacity value is 2^64 + (o−1) where o the output length.
         // for our transcript use cases, o = 1
@@ -64,8 +67,8 @@ impl<F: FieldExt, L: LoadedScalar<F>, const T: usize, const RATE: usize> State<F
             .for_each(|(idx, (state, constant))| {
                 *state = state.loader().sum_with_const(
                     &[state],
-                    if idx == 0 { F::one() + constant } else { *constant },
-                    // the if idx == 0 { F::one() } else { F::zero() } is to pad the input with a single 1 and then 0s
+                    if idx == 0 { F::ONE + constant } else { *constant },
+                    // the if idx == 0 { F::ONE } else { F::ZERO } is to pad the input with a single 1 and then 0s
                     // this is the padding suggested in pg 31 of https://eprint.iacr.org/2019/458.pdf and in Section 4.2 (Variable-Input-Length Hashing. The padding consists of one field element being 1, and the remaining elements being 0.)
                 );
             });
@@ -89,7 +92,7 @@ impl<F: FieldExt, L: LoadedScalar<F>, const T: usize, const RATE: usize> State<F
                 .sum_with_coeff(&mds.row().iter().cloned().zip(self.inner.iter()).collect_vec()),
         )
         .chain(mds.col_hat().iter().zip(self.inner.iter().skip(1)).map(|(coeff, state)| {
-            self.loader().sum_with_coeff(&[(*coeff, &self.inner[0]), (F::one(), state)])
+            self.loader().sum_with_coeff(&[(*coeff, &self.inner[0]), (F::ONE, state)])
         }))
         .collect_vec()
         .try_into()
@@ -99,17 +102,20 @@ impl<F: FieldExt, L: LoadedScalar<F>, const T: usize, const RATE: usize> State<F
 
 /// Poseidon hasher with configurable `RATE`.
 #[derive(Debug)]
-pub struct Poseidon<F: FieldExt, L, const T: usize, const RATE: usize> {
+pub struct Poseidon<F: PrimeField, L, const T: usize, const RATE: usize> {
     spec: Spec<F, T, RATE>,
     default_state: State<F, L, T, RATE>,
     state: State<F, L, T, RATE>,
     buf: Vec<L>,
 }
 
-impl<F: FieldExt, L: LoadedScalar<F>, const T: usize, const RATE: usize> Poseidon<F, L, T, RATE> {
+impl<F: PrimeField, L: LoadedScalar<F>, const T: usize, const RATE: usize> Poseidon<F, L, T, RATE> {
     /// Initialize a poseidon hasher.
     /// Generates a new spec with specific number of full and partial rounds. `SECURE_MDS` is usually 0, but may need to be specified because insecure matrices may sometimes be generated
-    pub fn new(loader: &L::Loader, r_f: usize, r_p: usize) -> Self {
+    pub fn new(loader: &L::Loader, r_f: usize, r_p: usize) -> Self
+    where
+        F: FieldExt,
+    {
         let default_state =
             State::new(poseidon::State::default().words().map(|state| loader.load_const(&state)));
         Self {
@@ -183,7 +189,7 @@ impl<F: FieldExt, L: LoadedScalar<F>, const T: usize, const RATE: usize> Poseido
             self.state.sbox_full(constants);
             self.state.apply_mds(&mds);
         }
-        self.state.sbox_full(&[F::zero(); T]);
+        self.state.sbox_full(&[F::ZERO; T]);
         self.state.apply_mds(&mds);
     }
 }

@@ -9,7 +9,7 @@ use crate::{
         Loader, ScalarLoader,
     },
     util::{
-        arithmetic::{fe_to_fe, CurveAffine, PrimeField},
+        arithmetic::{fe_to_fe, CurveAffine, FieldExt, PrimeField},
         hash::Poseidon,
         transcript::{Transcript, TranscriptRead, TranscriptWrite},
         Itertools,
@@ -65,7 +65,10 @@ where
 {
     /// Initialize [`PoseidonTranscript`] given readable or writeable stream for
     /// verifying or proving with [`NativeLoader`].
-    pub fn new(loader: &Rc<Halo2Loader<'a, C, EccChip>>, stream: Value<R>) -> Self {
+    pub fn new(loader: &Rc<Halo2Loader<'a, C, EccChip>>, stream: Value<R>) -> Self
+    where
+        C::Scalar: FieldExt,
+    {
         let buf = Poseidon::new(loader, R_F, R_P);
         Self { loader: loader.clone(), stream, buf }
     }
@@ -174,7 +177,10 @@ impl<C: CurveAffine, S, const T: usize, const RATE: usize, const R_F: usize, con
 {
     /// Initialize [`PoseidonTranscript`] given readable or writeable stream for
     /// verifying or proving with [`NativeLoader`].
-    pub fn new(stream: S) -> Self {
+    pub fn new(stream: S) -> Self
+    where
+        C::Scalar: FieldExt,
+    {
         Self { loader: NativeLoader, stream, buf: Poseidon::new(&NativeLoader, R_F, R_P) }
     }
 
@@ -379,6 +385,7 @@ impl<C, R, const T: usize, const RATE: usize, const R_F: usize, const R_P: usize
     for PoseidonTranscript<C, NativeLoader, R, T, RATE, R_F, R_P>
 where
     C: CurveAffine,
+    C::Scalar: FieldExt,
     R: Read,
 {
     fn init(reader: R) -> Self {
@@ -413,6 +420,7 @@ impl<C, W, const T: usize, const RATE: usize, const R_F: usize, const R_P: usize
     for PoseidonTranscript<C, NativeLoader, W, T, RATE, R_F, R_P>
 where
     C: CurveAffine,
+    C::Scalar: FieldExt,
     W: Write,
 {
     fn init(writer: W) -> Self {

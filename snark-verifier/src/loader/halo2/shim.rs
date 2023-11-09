@@ -1,9 +1,11 @@
+use halo2_base::halo2_proofs::halo2curves::ff::PrimeField;
+
 use crate::{
     halo2_proofs::{
         circuit::{Cell, Value},
         plonk::Error,
     },
-    util::arithmetic::{CurveAffine, FieldExt},
+    util::arithmetic::CurveAffine,
 };
 use std::{fmt::Debug, ops::Deref};
 
@@ -14,7 +16,7 @@ pub trait Context: Debug {
 }
 
 /// Instructions to handle field element operations.
-pub trait IntegerInstructions<'a, F: FieldExt>: Clone + Debug {
+pub trait IntegerInstructions<'a, F: PrimeField>: Clone + Debug {
     /// Context (either enhanced `region` or some kind of builder).
     type Context: Context;
     /// Assigned cell.
@@ -40,8 +42,8 @@ pub trait IntegerInstructions<'a, F: FieldExt>: Clone + Debug {
     fn sum_with_coeff_and_const(
         &self,
         ctx: &mut Self::Context,
-        values: &[(F::Scalar, impl Deref<Target = Self::AssignedInteger>)],
-        constant: F::Scalar,
+        values: &[(F, impl Deref<Target = Self::AssignedInteger>)],
+        constant: F,
     ) -> Result<Self::AssignedInteger, Error>;
 
     /// Sum product of integers with coefficients and constant.
@@ -49,11 +51,11 @@ pub trait IntegerInstructions<'a, F: FieldExt>: Clone + Debug {
         &self,
         ctx: &mut Self::Context,
         values: &[(
-            F::Scalar,
+            F,
             impl Deref<Target = Self::AssignedInteger>,
             impl Deref<Target = Self::AssignedInteger>,
         )],
-        constant: F::Scalar,
+        constant: F,
     ) -> Result<Self::AssignedInteger, Error>;
 
     /// Returns `lhs - rhs`.
@@ -222,14 +224,14 @@ mod halo2_lib {
         fn sum_with_coeff_and_const(
             &self,
             ctx: &mut Self::Context,
-            values: &[(F::Scalar, impl Deref<Target = Self::AssignedInteger>)],
+            values: &[(F, impl Deref<Target = Self::AssignedInteger>)],
             constant: F,
         ) -> Result<Self::AssignedInteger, Error> {
             let mut a = Vec::with_capacity(values.len() + 1);
             let mut b = Vec::with_capacity(values.len() + 1);
-            if constant != F::zero() {
+            if constant != F::ZERO {
                 a.push(Constant(constant));
-                b.push(Constant(F::one()));
+                b.push(Constant(F::ONE));
             }
             a.extend(values.iter().map(|(_, a)| Existing(a.deref().clone())));
             b.extend(values.iter().map(|(c, _)| Constant(*c)));
@@ -240,7 +242,7 @@ mod halo2_lib {
             &self,
             ctx: &mut Self::Context,
             values: &[(
-                F::Scalar,
+                F,
                 impl Deref<Target = Self::AssignedInteger>,
                 impl Deref<Target = Self::AssignedInteger>,
             )],
@@ -282,8 +284,8 @@ mod halo2_lib {
         ) -> Result<Self::AssignedInteger, Error> {
             // make sure scalar != 0
             let is_zero = self.is_zero(ctx, a);
-            self.assert_is_const(ctx, &is_zero, F::zero());
-            Ok(GateInstructions::div_unsafe(self, ctx, Constant(F::one()), Existing(a.clone())))
+            self.assert_is_const(ctx, &is_zero, F::ZERO);
+            Ok(GateInstructions::div_unsafe(self, ctx, Constant(F::ONE), Existing(a.clone())))
         }
 
         fn assert_equal(
@@ -336,7 +338,7 @@ mod halo2_lib {
         ) -> Result<Self::AssignedEcPoint, Error> {
             let assigned = self.assign_point(ctx, point);
             let is_valid = self.is_on_curve_or_infinity::<C>(ctx, &assigned);
-            self.field_chip.range.gate.assert_is_const(ctx, &is_valid, C::Scalar::one());
+            self.field_chip.range.gate.assert_is_const(ctx, &is_valid, C::Scalar::ONE);
             Ok(assigned)
         }
 

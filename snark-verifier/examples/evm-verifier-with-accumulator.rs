@@ -50,6 +50,7 @@ mod application {
         },
         Fr,
     };
+    use halo2_base::halo2_proofs::arithmetic::Field;
     use rand::RngCore;
 
     #[derive(Clone, Copy)]
@@ -117,6 +118,8 @@ mod application {
     impl Circuit<Fr> for StandardPlonk {
         type Config = StandardPlonkConfig;
         type FloorPlanner = SimpleFloorPlanner;
+        #[cfg(feature = "circuit-params")]
+        type Params = ();
 
         fn without_witnesses(&self) -> Self {
             Self::default()
@@ -138,7 +141,7 @@ mod application {
                     #[cfg(feature = "halo2-pse")]
                     {
                         region.assign_advice(|| "", config.a, 0, || Value::known(self.0))?;
-                        region.assign_fixed(|| "", config.q_a, 0, || Value::known(-Fr::one()))?;
+                        region.assign_fixed(|| "", config.q_a, 0, || Value::known(-Fr::ONE))?;
 
                         region.assign_advice(
                             || "",
@@ -162,7 +165,7 @@ mod application {
                         }
 
                         let a =
-                            region.assign_advice(|| "", config.a, 2, || Value::known(Fr::one()))?;
+                            region.assign_advice(|| "", config.a, 2, || Value::known(Fr::ONE))?;
                         a.copy_advice(|| "", &mut region, config.b, 3)?;
                         a.copy_advice(|| "", &mut region, config.c, 4)?;
                     }
@@ -173,7 +176,7 @@ mod application {
                             0,
                             Value::known(Assigned::Trivial(self.0)),
                         )?;
-                        region.assign_fixed(config.q_a, 0, Assigned::Trivial(-Fr::one()));
+                        region.assign_fixed(config.q_a, 0, Assigned::Trivial(-FrONE));
 
                         region.assign_advice(
                             config.a,
@@ -193,7 +196,7 @@ mod application {
                         let a = region.assign_advice(
                             config.a,
                             2,
-                            Value::known(Assigned::Trivial(Fr::one())),
+                            Value::known(Assigned::Trivial(FrONE)),
                         )?;
                         a.copy_advice(&mut region, config.b, 3);
                         a.copy_advice(&mut region, config.c, 4);

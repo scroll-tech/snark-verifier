@@ -188,7 +188,7 @@ where
 
         let (u, h) = instances
             .iter()
-            .map(|IpaAccumulator { u, xi }| (*u, h_coeffs(xi, C::Scalar::one())))
+            .map(|IpaAccumulator { u, xi }| (*u, h_coeffs(xi, C::Scalar::ONE)))
             .chain(a_b_u.map(|(a, b, u)| {
                 (
                     u,

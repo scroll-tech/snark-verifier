@@ -73,7 +73,7 @@ impl<F: FieldExt> Circuit<F> for MainGateWithRange<F> {
     type FloorPlanner = V1;
 
     fn without_witnesses(&self) -> Self {
-        Self(vec![F::zero()])
+        Self(vec![F::ZERO])
     }
 
     fn configure(meta: &mut ConstraintSystem<F>) -> Self::Config {
@@ -97,7 +97,7 @@ impl<F: FieldExt> Circuit<F> for MainGateWithRange<F> {
                 range_chip.decompose(&mut ctx, Value::known(F::from(u32::MAX as u64)), 8, 39)?;
                 let a = range_chip.assign(&mut ctx, Value::known(self.0[0]), 8, 68)?;
                 let b = main_gate.sub_sub_with_constant(&mut ctx, &a, &a, &a, F::from(2))?;
-                let cond = main_gate.assign_bit(&mut ctx, Value::known(F::one()))?;
+                let cond = main_gate.assign_bit(&mut ctx, Value::known(F::ONE))?;
                 main_gate.select(&mut ctx, &a, &b, &cond)?;
 
                 Ok(a)

@@ -1,11 +1,9 @@
-use crate::{
-    halo2_proofs::{
-        circuit::{Layouter, SimpleFloorPlanner, Value},
-        plonk::{Advice, Circuit, Column, ConstraintSystem, Error, Fixed, Instance},
-        poly::Rotation,
-    },
-    util::arithmetic::FieldExt,
+use crate::halo2_proofs::{
+    circuit::{Layouter, SimpleFloorPlanner, Value},
+    plonk::{Advice, Circuit, Column, ConstraintSystem, Error, Fixed, Instance},
+    poly::Rotation,
 };
+use halo2_base::halo2_proofs::halo2curves::ff::PrimeField;
 use rand::RngCore;
 
 #[allow(dead_code)]
@@ -23,7 +21,7 @@ pub struct StandardPlonkConfig {
 }
 
 impl StandardPlonkConfig {
-    pub fn configure<F: FieldExt>(meta: &mut ConstraintSystem<F>) -> Self {
+    pub fn configure<F: PrimeField>(meta: &mut ConstraintSystem<F>) -> Self {
         let [a, b, c] = [(); 3].map(|_| meta.advice_column());
         let [q_a, q_b, q_c, q_ab, constant] = [(); 5].map(|_| meta.fixed_column());
         let instance = meta.instance_column();
@@ -55,7 +53,7 @@ impl StandardPlonkConfig {
 #[derive(Clone, Default)]
 pub struct StandardPlonk<F>(F);
 
-impl<F: FieldExt> StandardPlonk<F> {
+impl<F: PrimeField> StandardPlonk<F> {
     pub fn rand<R: RngCore>(mut rng: R) -> Self {
         Self(F::from(rng.next_u32() as u64))
     }
@@ -65,9 +63,11 @@ impl<F: FieldExt> StandardPlonk<F> {
     }
 }
 
-impl<F: FieldExt> Circuit<F> for StandardPlonk<F> {
+impl<F: PrimeField> Circuit<F> for StandardPlonk<F> {
     type Config = StandardPlonkConfig;
     type FloorPlanner = SimpleFloorPlanner;
+    #[cfg(feature = "circuit-params")]
+    type Params = ();
 
     fn without_witnesses(&self) -> Self {
         Self::default()
@@ -89,7 +89,7 @@ impl<F: FieldExt> Circuit<F> for StandardPlonk<F> {
                 #[cfg(feature = "halo2-pse")]
                 {
                     region.assign_advice(|| "", config.a, 0, || Value::known(self.0))?;
-                    region.assign_fixed(|| "", config.q_a, 0, || Value::known(-F::one()))?;
+                    region.assign_fixed(|| "", config.q_a, 0, || Value::known(-F::ONE))?;
 
                     region.assign_advice(|| "", config.a, 1, || Value::known(-F::from(5u64)))?;
                     for (idx, column) in (1..).zip([
@@ -107,14 +107,14 @@ impl<F: FieldExt> Circuit<F> for StandardPlonk<F> {
                         )?;
                     }
 
-                    let a = region.assign_advice(|| "", config.a, 2, || Value::known(F::one()))?;
+                    let a = region.assign_advice(|| "", config.a, 2, || Value::known(F::ONE))?;
                     a.copy_advice(|| "", &mut region, config.b, 3)?;
                     a.copy_advice(|| "", &mut region, config.c, 4)?;
                 }
                 #[cfg(feature = "halo2-axiom")]
                 {
                     region.assign_advice(config.a, 0, Value::known(Assigned::Trivial(self.0)))?;
-                    region.assign_fixed(config.q_a, 0, Assigned::Trivial(-F::one()));
+                    region.assign_fixed(config.q_a, 0, Assigned::Trivial(-F::ONE));
 
                     region.assign_advice(
                         config.a,
@@ -134,7 +134,7 @@ impl<F: FieldExt> Circuit<F> for StandardPlonk<F> {
                     let a = region.assign_advice(
                         config.a,
                         2,
-                        Value::known(Assigned::Trivial(F::one())),
+                        Value::known(Assigned::Trivial(F::ONE)),
                     )?;
                     a.copy_advice(&mut region, config.b, 3);
                     a.copy_advice(&mut region, config.c, 4);

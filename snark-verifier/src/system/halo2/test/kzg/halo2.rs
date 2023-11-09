@@ -304,6 +304,8 @@ impl Accumulation {
 impl Circuit<Fr> for Accumulation {
     type Config = Halo2VerifierCircuitConfig;
     type FloorPlanner = SimpleFloorPlanner;
+    #[cfg(feature = "circuit-params")]
+    type Params = ();
 
     fn without_witnesses(&self) -> Self {
         Self {

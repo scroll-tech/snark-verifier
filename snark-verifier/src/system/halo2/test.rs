@@ -10,8 +10,9 @@ use crate::{
         },
         transcript::{EncodedChallenge, TranscriptReadBuffer, TranscriptWriterBuffer},
     },
-    util::arithmetic::CurveAffine,
+    util::arithmetic::{CurveAffine, FieldExt},
 };
+use halo2_base::halo2_proofs::halo2curves::ff::WithSmallOrderMulGroup;
 use rand_chacha::rand_core::RngCore;
 use std::{fs, io::Cursor};
 
@@ -48,6 +49,7 @@ pub fn create_proof_checked<'a, S, C, P, V, VS, TW, TR, EC, R>(
 where
     S: CommitmentScheme,
     S::ParamsVerifier: 'a,
+    S::Scalar: FieldExt + WithSmallOrderMulGroup<3>,
     C: Circuit<S::Scalar>,
     P: Prover<'a, S>,
     V: Verifier<'a, S>,

@@ -11,6 +11,7 @@ use crate::{
     },
     Error,
 };
+use halo2_base::halo2_proofs::halo2curves::ff::FromUniformBytes;
 use halo2_proofs::transcript::{Blake2bRead, Blake2bWrite, Challenge255};
 use std::io::{Read, Write};
 
@@ -20,7 +21,10 @@ pub mod evm;
 #[cfg(feature = "loader_halo2")]
 pub mod halo2;
 
-impl<C: CurveAffine, R: Read> Transcript<C, NativeLoader> for Blake2bRead<R, C, Challenge255<C>> {
+impl<C: CurveAffine, R: Read> Transcript<C, NativeLoader> for Blake2bRead<R, C, Challenge255<C>>
+where
+    C::Scalar: FromUniformBytes<64>,
+{
     fn loader(&self) -> &NativeLoader {
         &native::LOADER
     }
@@ -40,8 +44,9 @@ impl<C: CurveAffine, R: Read> Transcript<C, NativeLoader> for Blake2bRead<R, C, 
     }
 }
 
-impl<C: CurveAffine, R: Read> TranscriptRead<C, NativeLoader>
-    for Blake2bRead<R, C, Challenge255<C>>
+impl<C: CurveAffine, R: Read> TranscriptRead<C, NativeLoader> for Blake2bRead<R, C, Challenge255<C>>
+where
+    C::Scalar: FromUniformBytes<64>,
 {
     fn read_scalar(&mut self) -> Result<C::Scalar, Error> {
         halo2_proofs::transcript::TranscriptRead::read_scalar(self)
@@ -54,7 +59,10 @@ impl<C: CurveAffine, R: Read> TranscriptRead<C, NativeLoader>
     }
 }
 
-impl<C: CurveAffine, W: Write> Transcript<C, NativeLoader> for Blake2bWrite<W, C, Challenge255<C>> {
+impl<C: CurveAffine, W: Write> Transcript<C, NativeLoader> for Blake2bWrite<W, C, Challenge255<C>>
+where
+    C::Scalar: FromUniformBytes<64>,
+{
     fn loader(&self) -> &NativeLoader {
         &native::LOADER
     }
@@ -74,7 +82,10 @@ impl<C: CurveAffine, W: Write> Transcript<C, NativeLoader> for Blake2bWrite<W, C
     }
 }
 
-impl<C: CurveAffine> TranscriptWrite<C> for Blake2bWrite<Vec<u8>, C, Challenge255<C>> {
+impl<C: CurveAffine> TranscriptWrite<C> for Blake2bWrite<Vec<u8>, C, Challenge255<C>>
+where
+    C::Scalar: FromUniformBytes<64>,
+{
     fn write_scalar(&mut self, scalar: C::Scalar) -> Result<(), Error> {
         halo2_proofs::transcript::TranscriptWrite::write_scalar(self, scalar)
             .map_err(|err| Error::Transcript(err.kind(), err.to_string()))

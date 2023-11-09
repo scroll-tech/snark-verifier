@@ -13,6 +13,7 @@ use crate::{
     },
     util::{
         arithmetic::{root_of_unity, CurveAffine, Domain, FieldExt, Rotation},
+        arithmetic::{root_of_unity, CurveAffine, Domain, Rotation},
         izip,
         protocol::{
             CommonPolynomial, Expression, InstanceCommittingKey, Query, QuotientPolynomial,
@@ -21,6 +22,7 @@ use crate::{
     },
     Protocol,
 };
+use halo2_base::halo2_proofs::halo2curves::ff::PrimeField;
 use num_integer::Integer;
 use std::{io, iter, mem::size_of};
 
@@ -170,7 +172,7 @@ impl From<poly::Rotation> for Rotation {
     }
 }
 
-struct Polynomials<'a, F: FieldExt> {
+struct Polynomials<'a, F: PrimeField> {
     cs: &'a ConstraintSystem<F>,
     zk: bool,
     query_instance: bool,
@@ -188,7 +190,7 @@ struct Polynomials<'a, F: FieldExt> {
     num_lookup_phi: usize,
 }
 
-impl<'a, F: FieldExt> Polynomials<'a, F> {
+impl<'a, F: PrimeField> Polynomials<'a, F> {
     fn new(
         cs: &'a ConstraintSystem<F>,
         zk: bool,
@@ -460,7 +462,7 @@ impl<'a, F: FieldExt> Polynomials<'a, F> {
     }
 
     fn l_active(&self) -> Expression<F> {
-        Expression::Constant(F::one()) - self.l_last() - self.l_blind()
+        Expression::Constant(F::ONE) - self.l_last() - self.l_blind()
     }
 
     fn system_challenge_offset(&self) -> usize {
@@ -485,7 +487,7 @@ impl<'a, F: FieldExt> Polynomials<'a, F> {
     }
 
     fn permutation_constraints(&'a self, t: usize) -> impl IntoIterator<Item = Expression<F>> + 'a {
-        let one = &Expression::Constant(F::one());
+        let one = &Expression::Constant(F::ONE);
         let l_0 = &Expression::<F>::CommonPolynomial(CommonPolynomial::Lagrange(0));
         let l_last = &self.l_last();
         let l_active = &self.l_active();
@@ -577,6 +579,7 @@ impl<'a, F: FieldExt> Polynomials<'a, F> {
     }
 
     fn lookup_constraints(&'a self, t: usize) -> impl IntoIterator<Item = Expression<F>> + 'a {
+        let one = &Expression::Constant(F::ONE);
         let l_0 = &Expression::<F>::CommonPolynomial(CommonPolynomial::Lagrange(0));
         let l_last = &self.l_last();
         let l_active = &self.l_active();
@@ -683,7 +686,7 @@ impl<C: CurveAffine> EncodedChallenge<C> for MockChallenge {
 }
 
 #[derive(Default)]
-struct MockTranscript<F: FieldExt>(F);
+struct MockTranscript<F: PrimeField>(F);
 
 impl<C: CurveAffine> Transcript<C, MockChallenge> for MockTranscript<C::Scalar> {
     fn squeeze_challenge(&mut self) -> MockChallenge {

@@ -43,7 +43,7 @@ mod native {
             dk: &Self::DecidingKey,
             IpaAccumulator { u, xi }: IpaAccumulator<C, NativeLoader>,
         ) -> bool {
-            let h = h_coeffs(&xi, C::Scalar::one());
+            let h = h_coeffs(&xi, C::Scalar::ONE);
             u == multi_scalar_multiplication(&h, &dk.g).to_affine()
         }
 
