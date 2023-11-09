@@ -27,16 +27,16 @@ debug-assertions = false
 lto = "fat" 
 # codegen-units = 1
 panic = "abort"
-incremental = true
+incremental = false
 
 # For performance profiling
 [profile.flamegraph]
 inherits = "release"
 debug = true
 
+# patch until PR https://github.com/privacy-scaling-explorations/halo2/pull/111 is merged
 [patch."https://github.com/privacy-scaling-explorations/halo2.git"]
-halo2_proofs = { git = "https://github.com/scroll-tech/halo2.git", branch = "develop-rc" }
+halo2_proofs = { git = "https://github.com/scroll-tech/halo2.git", branch = "sync-ff-0.13" }
+
 [patch."https://github.com/privacy-scaling-explorations/poseidon.git"]
-poseidon = { git = "https://github.com/scroll-tech/poseidon.git", branch = "scroll-dev-0220" }
-[patch."https://github.com/privacy-scaling-explorations/halo2curves.git"]
-halo2curves = { git = "https://github.com/scroll-tech/halo2curves.git", branch = "0.3.1-derive-serde" }
+poseidon = { git = "https://github.com/scroll-tech/poseidon.git", branch = "sync-ff-0.13" }
