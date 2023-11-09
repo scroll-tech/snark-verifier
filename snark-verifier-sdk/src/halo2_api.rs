@@ -30,7 +30,7 @@ use halo2_base::halo2_proofs::{
         VerificationStrategy,
     },
     transcript::TranscriptReadBuffer,
-    SerdeFormat, {self},
+    SerdeFormat,
 };
 use itertools::Itertools;
 use rand::Rng;
