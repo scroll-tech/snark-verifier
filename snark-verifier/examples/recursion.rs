@@ -9,7 +9,6 @@ use halo2_proofs::{
     halo2curves::{
         bn256::{Bn256, Fq, Fr, G1Affine},
         group::ff::Field,
-        FieldExt,
     },
     plonk::{
         create_proof, keygen_pk, keygen_vk, Circuit, ConstraintSystem, Error, ProvingKey, Selector,
@@ -227,6 +226,8 @@ mod common {
         impl<F: Field, C: CircuitExt<F>> Circuit<F> for CsProxy<F, C> {
             type Config = C::Config;
             type FloorPlanner = C::FloorPlanner;
+            #[cfg(feature = "circuit-params")]
+            type Params = ();
 
             fn without_witnesses(&self) -> Self {
                 CsProxy(PhantomData)
@@ -303,6 +304,8 @@ mod application {
     impl Circuit<Fr> for Square {
         type Config = Selector;
         type FloorPlanner = SimpleFloorPlanner;
+        #[cfg(feature = "circuit-params")]
+        type Params = ();
 
         fn without_witnesses(&self) -> Self {
             Self::default()
@@ -595,7 +598,7 @@ mod recursion {
             snark.instances = vec![[g[1].x, g[1].y, g[0].x, g[0].y]
                 .into_iter()
                 .flat_map(fe_to_limbs::<_, _, LIMBS, BITS>)
-                .chain([Fr::zero(); 4])
+                .chain([Fr::ZERO; 4])
                 .collect_vec()];
             snark
         }
@@ -833,8 +836,8 @@ mod recursion {
             recursion_params,
             gen_dummy_snark::<ConcreteCircuit>(app_params, Some(app_vk)),
             RecursionCircuit::initial_snark(recursion_params, None),
-            Fr::zero(),
-            Fr::zero(),
+            Fr::ZERO,
+            Fr::ZERO,
             0,
         );
         gen_pk(recursion_params, &recursion)

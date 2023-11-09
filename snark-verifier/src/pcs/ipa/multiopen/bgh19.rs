@@ -332,7 +332,7 @@ where
                     .filter(|&(i, _)| i != j)
                     .map(|(_, shift_i)| (*shift_j - shift_i))
                     .reduce(|acc, value| acc * value)
-                    .unwrap_or_else(|| F::one())
+                    .unwrap_or_else(|| F::ONE)
             })
             .collect_vec();
 

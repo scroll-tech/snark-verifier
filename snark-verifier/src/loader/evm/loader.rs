@@ -681,8 +681,8 @@ impl<F: PrimeField<Repr = [u8; 0x20]>> ScalarLoader<F> for Rc<EvmLoader> {
         }
 
         let push_addend = |(coeff, value): &(F, &Scalar)| {
-            assert_ne!(*coeff, F::zero());
-            match (*coeff == F::one(), &value.value) {
+            assert_ne!(*coeff, F::ZERO);
+            match (*coeff == F::ONE, &value.value) {
                 (true, _) => self.push(value),
                 (false, Value::Constant(value)) => self.push(
                     &self.scalar(Value::Constant(fe_to_u256(*coeff * u256_to_fe::<F>(*value)))),
@@ -696,7 +696,7 @@ impl<F: PrimeField<Repr = [u8; 0x20]>> ScalarLoader<F> for Rc<EvmLoader> {
         };
 
         let mut values = values.iter();
-        let initial_value = if constant == F::zero() {
+        let initial_value = if constant == F::ZERO {
             push_addend(values.next().unwrap())
         } else {
             self.push(&self.scalar(Value::Constant(fe_to_u256(constant))))
@@ -730,8 +730,8 @@ impl<F: PrimeField<Repr = [u8; 0x20]>> ScalarLoader<F> for Rc<EvmLoader> {
         }
 
         let push_addend = |(coeff, lhs, rhs): &(F, &Scalar, &Scalar)| {
-            assert_ne!(*coeff, F::zero());
-            match (*coeff == F::one(), &lhs.value, &rhs.value) {
+            assert_ne!(*coeff, F::ZERO);
+            match (*coeff == F::ONE, &lhs.value, &rhs.value) {
                 (_, Value::Constant(lhs), Value::Constant(rhs)) => {
                     self.push(&self.scalar(Value::Constant(fe_to_u256(
                         *coeff * u256_to_fe::<F>(*lhs) * u256_to_fe::<F>(*rhs),
@@ -761,7 +761,7 @@ impl<F: PrimeField<Repr = [u8; 0x20]>> ScalarLoader<F> for Rc<EvmLoader> {
         };
 
         let mut values = values.iter();
-        let initial_value = if constant == F::zero() {
+        let initial_value = if constant == F::ZERO {
             push_addend(values.next().unwrap())
         } else {
             self.push(&self.scalar(Value::Constant(fe_to_u256(constant))))

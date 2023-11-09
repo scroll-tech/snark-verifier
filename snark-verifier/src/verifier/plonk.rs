@@ -204,7 +204,7 @@ where
             .iter()
             .map(|query| pcs::Query {
                 poly: query.poly,
-                shift: protocol.domain.rotate_scalar(C::Scalar::one(), query.rotation),
+                shift: protocol.domain.rotate_scalar(C::Scalar::ONE, query.rotation),
                 eval: (),
             })
             .collect()
