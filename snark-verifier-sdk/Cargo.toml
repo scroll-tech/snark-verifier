@@ -4,8 +4,7 @@ version = "0.0.1"
 edition = "2021"
 
 [dependencies]
-itertools = "0.10.3"
-lazy_static = "1.4.0"
+itertools = "0.12"
 num-bigint = "0.4.3"
 num-integer = "0.1.45"
 num-traits = "0.2.15"

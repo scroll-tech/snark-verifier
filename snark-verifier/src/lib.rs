@@ -1,3 +1,4 @@
+#![feature(lazy_cell)]
 //! Generic (S)NARK verifier.
 #![allow(clippy::type_complexity)]
 #![allow(clippy::too_many_arguments)]

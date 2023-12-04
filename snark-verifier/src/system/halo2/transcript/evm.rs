@@ -1,4 +1,5 @@
 //! Transcript for verifier on EVM.
+use crate::loader::native::LOADER;
 use crate::{
     halo2_proofs,
     loader::{
@@ -167,7 +168,7 @@ where
     C::Scalar: PrimeField<Repr = [u8; 0x20]>,
 {
     fn loader(&self) -> &NativeLoader {
-        &native::LOADER
+        &LOADER
     }
 
     fn squeeze_challenge(&mut self) -> C::Scalar {

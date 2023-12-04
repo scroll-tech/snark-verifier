@@ -1,3 +1,5 @@
+#![feature(lazy_cell)]
+
 #[cfg(feature = "loader_evm")]
 mod evm_api;
 #[cfg(feature = "loader_halo2")]

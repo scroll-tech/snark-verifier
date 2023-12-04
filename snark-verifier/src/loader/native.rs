@@ -4,14 +4,12 @@ use crate::{
     util::arithmetic::{Curve, CurveAffine, FieldOps, PrimeField},
     Error,
 };
-use lazy_static::lazy_static;
 use std::fmt::Debug;
+use std::sync::LazyLock;
 
-lazy_static! {
-    /// NativeLoader instance for [`LoadedEcPoint::loader`] and
-    /// [`LoadedScalar::loader`] referencing.
-    pub static ref LOADER: NativeLoader = NativeLoader;
-}
+/// NativeLoader instance for [`LoadedEcPoint::loader`] and
+/// [`LoadedScalar::loader`] referencing.
+pub static LOADER: LazyLock<NativeLoader> = LazyLock::new(|| NativeLoader);
 
 /// `Loader` implementation in native rust.
 #[derive(Clone, Debug)]

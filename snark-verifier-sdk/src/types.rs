@@ -2,7 +2,6 @@
 
 use super::{BITS, LIMBS};
 use halo2_base::halo2_proofs::halo2curves::bn256::{Bn256, Fr, G1Affine};
-use lazy_static::lazy_static;
 use snark_verifier::{
     loader::halo2::{halo2_ecc::ecc::BaseFieldEccChip as EccChip, Halo2Loader as Loader},
     pcs::kzg::{
@@ -10,12 +9,12 @@ use snark_verifier::{
     },
     verifier, PoseidonSpec,
 };
+use std::sync::LazyLock;
 
 use crate::param::{RATE, R_F, R_P, T};
 
-lazy_static! {
-    pub static ref POSEIDON_SPEC: PoseidonSpec<Fr, T, RATE> = PoseidonSpec::new(R_F, R_P);
-}
+pub static POSEIDON_SPEC: LazyLock<PoseidonSpec<Fr, T, RATE>> =
+    LazyLock::new(|| PoseidonSpec::new(R_F, R_P));
 
 /// Transcript instantiated with Poseidon
 pub type PoseidonTranscript<L, S> =

@@ -158,6 +158,7 @@ pub trait EccInstructions<'a, C: CurveAffine>: Clone + Debug {
 }
 
 mod halo2_lib {
+    use crate::util::arithmetic::PrimeField as _;
     use crate::{
         halo2_proofs::{
             circuit::{Cell, Value},
