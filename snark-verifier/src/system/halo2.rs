@@ -19,7 +19,7 @@ use crate::{
     },
     Protocol,
 };
-use halo2_base::halo2_proofs::halo2curves::ff::PrimeField;
+use halo2_base::halo2_proofs::halo2curves::ff::{FromUniformBytes, PrimeField};
 use num_integer::Integer;
 use std::{io, iter, mem::size_of};
 
@@ -91,7 +91,10 @@ pub fn compile<'a, C: CurveAffine, P: Params<'a, C>>(
     params: &P,
     vk: &VerifyingKey<C>,
     config: Config,
-) -> Protocol<C> {
+) -> Protocol<C> 
+where
+    C::ScalarExt: FromUniformBytes<64>
+{
     assert_eq!(vk.get_domain().k(), params.k());
 
     let cs = vk.cs();
@@ -723,7 +726,9 @@ impl<C: CurveAffine> Transcript<C, MockChallenge> for MockTranscript<C::Scalar> 
     }
 }
 
-fn transcript_initial_state<C: CurveAffine>(vk: &VerifyingKey<C>) -> C::Scalar {
+fn transcript_initial_state<C: CurveAffine>(vk: &VerifyingKey<C>) -> C::Scalar 
+where C::ScalarExt: FromUniformBytes<64>,
+{
     let mut transcript = MockTranscript::default();
     vk.hash_into(&mut transcript).unwrap();
     transcript.0
