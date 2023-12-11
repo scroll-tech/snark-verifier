@@ -91,9 +91,9 @@ pub fn compile<'a, C: CurveAffine, P: Params<'a, C>>(
     params: &P,
     vk: &VerifyingKey<C>,
     config: Config,
-) -> Protocol<C> 
+) -> Protocol<C>
 where
-    C::ScalarExt: FromUniformBytes<64>
+    C::ScalarExt: FromUniformBytes<64>,
 {
     assert_eq!(vk.get_domain().k(), params.k());
 
@@ -622,7 +622,16 @@ impl<'a, F: PrimeField> Polynomials<'a, F> {
             })
             .collect_vec();
 
-        let compress = |expressions: &'a [plonk::Expression<F>]| {
+        let compress_input = |expressions: &[Vec<plonk::Expression<F>>]| {
+            Expression::DistributePowers(
+                expressions
+                    .iter()
+                    .flat_map(|exprs| exprs.iter().map(|expr| self.convert(expr, t)))
+                    .collect(),
+                self.theta().into(),
+            )
+        };
+        let compress_table = |expressions: &[plonk::Expression<F>]| {
             Expression::DistributePowers(
                 expressions.iter().map(|expression| self.convert(expression, t)).collect(),
                 self.theta().into(),
@@ -638,8 +647,8 @@ impl<'a, F: PrimeField> Polynomials<'a, F> {
                     lookup,
                     (z, z_omega, permuted_input, permuted_input_omega_inv, permuted_table),
                 )| {
-                    let input = compress(lookup.input_expressions());
-                    let table = compress(lookup.table_expressions());
+                    let input = compress_input(lookup.input_expressions());
+                    let table = compress_table(lookup.table_expressions());
                     iter::empty()
                         .chain(Some(l_0 * (one - z)))
                         .chain(self.zk.then(|| l_last * (z * z - z)))
@@ -726,8 +735,9 @@ impl<C: CurveAffine> Transcript<C, MockChallenge> for MockTranscript<C::Scalar> 
     }
 }
 
-fn transcript_initial_state<C: CurveAffine>(vk: &VerifyingKey<C>) -> C::Scalar 
-where C::ScalarExt: FromUniformBytes<64>,
+fn transcript_initial_state<C: CurveAffine>(vk: &VerifyingKey<C>) -> C::Scalar
+where
+    C::ScalarExt: FromUniformBytes<64>,
 {
     let mut transcript = MockTranscript::default();
     vk.hash_into(&mut transcript).unwrap();
