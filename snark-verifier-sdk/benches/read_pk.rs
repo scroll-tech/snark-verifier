@@ -1,4 +1,4 @@
-use ark_std::{end_timer, start_timer};
+use ark_std::{end_timer, start_timer, test_rng};
 use criterion::Criterion;
 use criterion::{criterion_group, criterion_main};
 use halo2_base::gates::circuit::CircuitBuilderStage;
@@ -95,6 +95,7 @@ mod application {
     impl Circuit<Fr> for StandardPlonk {
         type Config = StandardPlonkConfig;
         type FloorPlanner = SimpleFloorPlanner;
+        type Params = ();
 
         fn without_witnesses(&self) -> Self {
             Self::default()
@@ -170,10 +171,11 @@ mod application {
 }
 
 fn gen_application_snark(params: &ParamsKZG<Bn256>) -> Snark {
+    let mut rng = test_rng();
     let circuit = application::StandardPlonk::rand(OsRng);
 
     let pk = gen_pk(params, &circuit, None);
-    gen_snark_shplonk(params, &pk, circuit, None::<&str>)
+    gen_snark_shplonk(params, &pk, circuit, &mut rng, None::<&str>)
 }
 
 fn bench(c: &mut Criterion) {

@@ -2,6 +2,7 @@
 
 use crate::halo2_curves;
 use crate::util::Itertools;
+pub use halo2_curves::pairing::MillerLoopResult;
 pub use halo2_curves::{
     group::{
         ff::{BatchInvert, Field, FromUniformBytes, PrimeField},
@@ -12,7 +13,6 @@ pub use halo2_curves::{
 };
 use num_bigint::BigUint;
 use num_traits::One;
-pub use halo2_curves::pairing::MillerLoopResult;
 use serde::{Deserialize, Serialize};
 use std::{
     cmp::Ordering,

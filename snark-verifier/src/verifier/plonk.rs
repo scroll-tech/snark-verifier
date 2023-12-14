@@ -30,7 +30,7 @@ pub(crate) mod protocol;
 pub use proof::PlonkProof;
 pub use protocol::PlonkProtocol;
 
-/// Verifier that verifies the cheap part of PLONK and ouput the accumulator.
+/// Verifier that verifies the cheap part of PLONK and output the accumulator.
 #[derive(Debug)]
 pub struct PlonkSuccinctVerifier<AS, AE = PhantomData<AS>>(PhantomData<(AS, AE)>);
 
@@ -100,7 +100,7 @@ where
 }
 
 /// Verifier that first verifies the cheap part of PLONK, then decides
-/// accumulator and returns accept/reject as ouput.
+/// accumulator and returns accept/reject as output.
 #[derive(Debug)]
 pub struct PlonkVerifier<AS, AE = PhantomData<AS>>(PhantomData<(AS, AE)>);
 

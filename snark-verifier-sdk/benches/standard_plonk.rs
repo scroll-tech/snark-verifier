@@ -1,4 +1,4 @@
-use ark_std::{end_timer, start_timer};
+use ark_std::{end_timer, start_timer, test_rng};
 use criterion::{criterion_group, criterion_main};
 use criterion::{BenchmarkId, Criterion};
 use halo2_base::gates::circuit::CircuitBuilderStage;
@@ -11,6 +11,7 @@ use halo2_proofs::{
 };
 use pprof::criterion::{Output, PProfProfiler};
 use rand::rngs::OsRng;
+use rand::thread_rng;
 use snark_verifier_sdk::evm::{evm_verify, gen_evm_proof_shplonk, gen_evm_verifier_shplonk};
 use snark_verifier_sdk::halo2::aggregation::{AggregationConfigParams, VerifierUniversality};
 use snark_verifier_sdk::{
@@ -97,6 +98,7 @@ mod application {
     impl Circuit<Fr> for StandardPlonk {
         type Config = StandardPlonkConfig;
         type FloorPlanner = SimpleFloorPlanner;
+        type Params = ();
 
         fn without_witnesses(&self) -> Self {
             Self::default()
@@ -172,14 +174,16 @@ mod application {
 }
 
 fn gen_application_snark(params: &ParamsKZG<Bn256>) -> Snark {
+    let mut rng = test_rng();
     let circuit = application::StandardPlonk::rand(OsRng);
 
     let pk = gen_pk(params, &circuit, None);
-    gen_snark_shplonk(params, &pk, circuit, None::<&str>)
+    gen_snark_shplonk(params, &pk, circuit, &mut rng, None::<&str>)
 }
 
 fn bench(c: &mut Criterion) {
     let path = "./configs/example_evm_accumulator.json";
+    let mut rng = test_rng();
     let params_app = gen_srs(8);
 
     let snarks = [(); 3].map(|_| gen_application_snark(&params_app));
@@ -216,7 +220,7 @@ fn bench(c: &mut Criterion) {
                 )
                 .use_break_points(break_points.clone());
                 let instances = agg_circuit.instances();
-                gen_proof_shplonk(params, pk, agg_circuit, instances, None)
+                gen_proof_shplonk(params, pk, agg_circuit, instances, &mut rng, None)
             })
         },
     );
@@ -235,7 +239,7 @@ fn bench(c: &mut Criterion) {
         .use_break_points(break_points);
         let num_instances = agg_circuit.num_instance();
         let instances = agg_circuit.instances();
-        let proof = gen_evm_proof_shplonk(&params, &pk, agg_circuit, instances.clone());
+        let proof = gen_evm_proof_shplonk(&params, &pk, agg_circuit, instances.clone(), &mut rng);
 
         let deployment_code = gen_evm_verifier_shplonk::<AggregationCircuit>(
             &params,

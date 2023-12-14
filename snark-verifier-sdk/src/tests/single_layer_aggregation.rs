@@ -65,7 +65,7 @@ fn test_shplonk_then_sphplonk_with_evm_verification() {
         &mut rng,
         Some(Path::new("data/inner_3.snark")),
     );
-    println!("finished snark generation for circuit 1");
+    println!("finished snark generation for inner circuits");
 
     // aggregation circuit
     let snarks = vec![snarks_1, snarks_2, snarks_3];

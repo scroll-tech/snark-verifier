@@ -1,4 +1,4 @@
-use ark_std::{end_timer, start_timer};
+use ark_std::{end_timer, start_timer, test_rng};
 use halo2_base::gates::circuit::builder::BaseCircuitBuilder;
 use halo2_base::gates::circuit::{BaseCircuitParams, CircuitBuilderStage};
 use halo2_base::gates::{GateInstructions, RangeInstructions};
@@ -15,6 +15,7 @@ use snark_verifier_sdk::{
 };
 
 fn generate_circuit(k: u32, fill: bool) -> Snark {
+    let mut rng = test_rng();
     let lookup_bits = k as usize - 1;
     let circuit_params = BaseCircuitParams {
         k: k as usize,
@@ -48,11 +49,12 @@ fn generate_circuit(k: u32, fill: bool) -> Snark {
     // .unwrap();
     // std::fs::remove_file(Path::new("examples/app.pk")).ok();
     // builder now has break_point set
-    gen_snark_shplonk(&params, &pk, builder, None::<&str>)
+    gen_snark_shplonk(&params, &pk, builder, &mut rng, None::<&str>)
 }
 
 fn main() {
     let dummy_snark = generate_circuit(9, false);
+    let mut rng = test_rng();
 
     let k = 16u32;
     let lookup_bits = k as usize - 1;
@@ -85,7 +87,7 @@ fn main() {
             VerifierUniversality::Full,
         )
         .use_break_points(break_points.clone());
-        let _snark = gen_snark_shplonk(&params, &pk, agg_circuit, None::<&str>);
+        let _snark = gen_snark_shplonk(&params, &pk, agg_circuit, &mut rng, None::<&str>);
         println!("snark {i} success");
     }
 }

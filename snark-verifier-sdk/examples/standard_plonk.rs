@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use ark_std::test_rng;
 use halo2_base::gates::circuit::CircuitBuilderStage;
 use halo2_base::halo2_proofs;
 use halo2_base::utils::fs::gen_srs;
@@ -168,14 +169,16 @@ mod application {
 }
 
 fn gen_application_snark(params: &ParamsKZG<Bn256>) -> Snark {
+    let mut rng = test_rng();
     let circuit = application::StandardPlonk::rand(OsRng);
 
     let pk = gen_pk(params, &circuit, None);
-    gen_snark_shplonk(params, &pk, circuit, None::<&str>)
+    gen_snark_shplonk(params, &pk, circuit, &mut rng, None::<&str>)
 }
 
 fn main() {
     let params_app = gen_srs(8);
+    let mut rng = test_rng();
 
     let k = 21u32;
     let lookup_bits = k as usize - 1;
@@ -205,7 +208,7 @@ fn main() {
     .use_break_points(break_points);
     let num_instances = agg_circuit.num_instance();
     let instances = agg_circuit.instances();
-    let proof = gen_evm_proof_shplonk(&params, &pk, agg_circuit, instances.clone());
+    let proof = gen_evm_proof_shplonk(&params, &pk, agg_circuit, instances.clone(), &mut rng);
 
     let deployment_code = gen_evm_verifier_shplonk::<AggregationCircuit>(
         &params,

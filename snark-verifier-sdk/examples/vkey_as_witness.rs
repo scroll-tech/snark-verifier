@@ -1,5 +1,6 @@
 use application::ComputeFlag;
 
+use ark_std::test_rng;
 use halo2_base::gates::circuit::CircuitBuilderStage;
 use halo2_base::halo2_proofs;
 use halo2_base::halo2_proofs::arithmetic::Field;
@@ -147,14 +148,16 @@ mod application {
 }
 
 fn gen_application_snark(params: &ParamsKZG<Bn256>, flag: ComputeFlag) -> Snark {
+    let mut rng = test_rng();
     let circuit = application::StandardPlonk(Fr::random(OsRng), flag);
 
     let pk = gen_pk(params, &circuit, None);
-    gen_snark_shplonk(params, &pk, circuit, None::<&str>)
+    gen_snark_shplonk(params, &pk, circuit, &mut rng, None::<&str>)
 }
 
 fn main() {
     let params_app = gen_srs(8);
+    let mut rng = test_rng();
     let dummy_snark = gen_application_snark(&params_app, ComputeFlag::All);
 
     let k = 15u32;
@@ -183,7 +186,7 @@ fn main() {
             VerifierUniversality::PreprocessedAsWitness,
         )
         .use_break_points(break_points.clone());
-        let _snark = gen_snark_shplonk(&params, &pk, agg_circuit, None::<&str>);
+        let _snark = gen_snark_shplonk(&params, &pk, agg_circuit, &mut rng, None::<&str>);
         println!("snark {i} success");
     }
 }

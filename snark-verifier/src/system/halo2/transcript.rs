@@ -9,8 +9,8 @@ use crate::{
     },
     Error,
 };
-use halo2_proofs::transcript::{Blake2bRead, Blake2bWrite, Challenge255};
 use ff::FromUniformBytes;
+use halo2_proofs::transcript::{Blake2bRead, Blake2bWrite, Challenge255};
 use std::io::{Read, Write};
 
 #[cfg(feature = "loader_evm")]
