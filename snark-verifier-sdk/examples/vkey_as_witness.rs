@@ -115,9 +115,9 @@ mod application {
             layouter.assign_region(
                 || "",
                 |mut region| {
-                    region.assign_advice(|| "", config.a, 0, || Value::known(self.0));
-                    region.assign_fixed(|| "", config.q_a, 0, || Value::known(-Fr::one()));
-                    region.assign_advice(|| "", config.a, 1, || Value::known(-Fr::from(5u64)));
+                    region.assign_advice(|| "", config.a, 0, || Value::known(self.0))?;
+                    region.assign_fixed(|| "", config.q_a, 0, || Value::known(-Fr::one()))?;
+                    region.assign_advice(|| "", config.a, 1, || Value::known(-Fr::from(5u64)))?;
                     if self.1 != ComputeFlag::SkipFixed {
                         for (idx, column) in (1..).zip([
                             config.q_a,
@@ -131,13 +131,13 @@ mod application {
                                 column,
                                 1,
                                 || Value::known(Fr::from(idx as u64)),
-                            );
+                            )?;
                         }
                     }
                     let a = region.assign_advice(|| "", config.a, 2, || Value::known(Fr::one()))?;
                     if self.1 != ComputeFlag::SkipCopy {
-                        a.copy_advice(|| "", &mut region, config.b, 3);
-                        a.copy_advice(|| "", &mut region, config.c, 4);
+                        a.copy_advice(|| "", &mut region, config.b, 3)?;
+                        a.copy_advice(|| "", &mut region, config.c, 4)?;
                     }
 
                     Ok(())

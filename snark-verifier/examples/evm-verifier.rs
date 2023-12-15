@@ -4,14 +4,14 @@ use halo2_proofs::{
     dev::MockProver,
     halo2curves::bn256::{Bn256, Fq, Fr, G1Affine},
     plonk::{
-        create_proof, keygen_pk, keygen_vk, verify_proof, Advice, Assigned, Circuit, Column,
+        create_proof, keygen_pk, keygen_vk, verify_proof, Advice, Circuit, Column,
         ConstraintSystem, Error, Fixed, Instance, ProvingKey, VerifyingKey,
     },
     poly::{
         commitment::{Params, ParamsProver},
         kzg::{
             commitment::{KZGCommitmentScheme, ParamsKZG},
-            multiopen::{ProverGWC, VerifierGWC},
+            multiopen::{ProverSHPLONK, VerifierSHPLONK},
             strategy::AccumulatorStrategy,
         },
         Rotation, VerificationStrategy,
@@ -22,13 +22,13 @@ use itertools::Itertools;
 use rand::{rngs::OsRng, RngCore};
 use snark_verifier::{
     loader::evm::{self, deploy_and_call, encode_calldata, EvmLoader},
-    pcs::kzg::{Gwc19, KzgAs},
+    pcs::kzg::{Bdfg21, KzgAs},
     system::halo2::{compile, transcript::evm::EvmTranscript, Config},
     verifier::{self, SnarkVerifier},
 };
 use std::rc::Rc;
 
-type PlonkVerifier = verifier::plonk::PlonkVerifier<KzgAs<Bn256, Gwc19>>;
+type PlonkVerifier = verifier::plonk::PlonkVerifier<KzgAs<Bn256, Bdfg21>>;
 
 #[derive(Clone, Copy)]
 struct StandardPlonkConfig {
@@ -192,22 +192,22 @@ fn gen_proof<C: Circuit<Fr>>(
     let instances = instances.iter().map(|instances| instances.as_slice()).collect_vec();
     let proof = {
         let mut transcript = TranscriptWriterBuffer::<_, G1Affine, _>::init(Vec::new());
-        create_proof::<KZGCommitmentScheme<Bn256>, ProverGWC<_>, _, _, EvmTranscript<_, _, _, _>, _>(
-            params,
-            pk,
-            &[circuit],
-            &[instances.as_slice()],
-            OsRng,
-            &mut transcript,
-        )
+        create_proof::<
+            KZGCommitmentScheme<Bn256>,
+            ProverSHPLONK<_>,
+            _,
+            _,
+            EvmTranscript<_, _, _, _>,
+            _,
+        >(params, pk, &[circuit], &[instances.as_slice()], OsRng, &mut transcript)
         .unwrap();
         transcript.finalize()
     };
 
     let accept = {
         let mut transcript = TranscriptReadBuffer::<_, G1Affine, _>::init(proof.as_slice());
-        VerificationStrategy::<_, VerifierGWC<_>>::finalize(
-            verify_proof::<_, VerifierGWC<_>, _, EvmTranscript<_, _, _, _>, _>(
+        VerificationStrategy::<_, VerifierSHPLONK<_>>::finalize(
+            verify_proof::<_, VerifierSHPLONK<_>, _, EvmTranscript<_, _, _, _>, _>(
                 params.verifier_params(),
                 pk.get_vk(),
                 AccumulatorStrategy::new(params.verifier_params()),

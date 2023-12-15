@@ -7,8 +7,6 @@ use halo2_base::halo2_proofs::poly::commitment::Params;
 use halo2_base::utils::fs::gen_srs;
 use halo2_proofs::halo2curves as halo2_curves;
 
-use rand::rngs::StdRng;
-use rand::SeedableRng;
 use snark_verifier_sdk::halo2::aggregation::{AggregationConfigParams, VerifierUniversality};
 use snark_verifier_sdk::SHPLONK;
 use snark_verifier_sdk::{
@@ -107,9 +105,9 @@ mod application {
             layouter.assign_region(
                 || "",
                 |mut region| {
-                    region.assign_advice(|| "", config.a, 0, || Value::known(self.0));
-                    region.assign_fixed(|| "", config.q_a, 0, || Value::known(-Fr::one()));
-                    region.assign_advice(|| "", config.a, 1, || Value::known(-Fr::from(5u64)));
+                    region.assign_advice(|| "", config.a, 0, || Value::known(self.0))?;
+                    region.assign_fixed(|| "", config.q_a, 0, || Value::known(-Fr::one()))?;
+                    region.assign_advice(|| "", config.a, 1, || Value::known(-Fr::from(5u64)))?;
                     for (idx, column) in (1..).zip([
                         config.q_a,
                         config.q_b,
@@ -122,11 +120,11 @@ mod application {
                             column,
                             1,
                             || Value::known(Fr::from(idx as u64)),
-                        );
+                        )?;
                     }
                     let a = region.assign_advice(|| "", config.a, 2, || Value::known(Fr::one()))?;
-                    a.copy_advice(|| "", &mut region, config.b, 3);
-                    a.copy_advice(|| "", &mut region, config.c, 4);
+                    a.copy_advice(|| "", &mut region, config.b, 3)?;
+                    a.copy_advice(|| "", &mut region, config.c, 4)?;
 
                     // assuming <= 10 blinding factors
                     // fill in most of circuit with a computation
@@ -137,7 +135,7 @@ mod application {
                             config.a,
                             offset,
                             || Value::known(-Fr::from(5u64)),
-                        );
+                        )?;
                         for (idx, column) in (1..).zip([
                             config.q_a,
                             config.q_b,
@@ -150,7 +148,7 @@ mod application {
                                 column,
                                 offset,
                                 || Value::known(Fr::from(idx as u64)),
-                            );
+                            )?;
                         }
                     }
 

@@ -11,7 +11,6 @@ use halo2_proofs::{
 };
 use pprof::criterion::{Output, PProfProfiler};
 use rand::rngs::OsRng;
-use rand::thread_rng;
 use snark_verifier_sdk::evm::{evm_verify, gen_evm_proof_shplonk, gen_evm_verifier_shplonk};
 use snark_verifier_sdk::halo2::aggregation::{AggregationConfigParams, VerifierUniversality};
 use snark_verifier_sdk::{

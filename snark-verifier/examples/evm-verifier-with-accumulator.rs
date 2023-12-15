@@ -12,7 +12,7 @@ use halo2_proofs::{
         commitment::ParamsProver,
         kzg::{
             commitment::{KZGCommitmentScheme, ParamsKZG},
-            multiopen::{ProverGWC, VerifierGWC},
+            multiopen::{ProverSHPLONK, VerifierSHPLONK},
             strategy::AccumulatorStrategy,
         },
         VerificationStrategy,
@@ -26,7 +26,7 @@ use snark_verifier::{
         evm::{self, deploy_and_call, encode_calldata, EvmLoader},
         native::NativeLoader,
     },
-    pcs::kzg::{Gwc19, KzgAs, LimbsEncoding},
+    pcs::kzg::{Bdfg21, KzgAs, LimbsEncoding},
     system::halo2::{compile, transcript::evm::EvmTranscript, Config},
     verifier::{self, SnarkVerifier},
 };
@@ -35,7 +35,7 @@ use std::{fs::File, io::Cursor, rc::Rc};
 const LIMBS: usize = 3;
 const BITS: usize = 88;
 
-type As = KzgAs<Bn256, Gwc19>;
+type As = KzgAs<Bn256, Bdfg21>;
 type PlonkSuccinctVerifier = verifier::plonk::PlonkSuccinctVerifier<As, LimbsEncoding<LIMBS, BITS>>;
 type PlonkVerifier = verifier::plonk::PlonkVerifier<As, LimbsEncoding<LIMBS, BITS>>;
 
@@ -46,7 +46,6 @@ mod application {
         poly::Rotation,
     };
     use super::Fr;
-    use halo2_base::halo2_proofs::plonk::Assigned;
     use rand::RngCore;
 
     #[derive(Clone, Copy)]
@@ -430,7 +429,7 @@ fn gen_proof<
     let instances = instances.iter().map(|instances| instances.as_slice()).collect_vec();
     let proof = {
         let mut transcript = TW::init(Vec::new());
-        create_proof::<KZGCommitmentScheme<Bn256>, ProverGWC<_>, _, _, TW, _>(
+        create_proof::<KZGCommitmentScheme<Bn256>, ProverSHPLONK<_>, _, _, TW, _>(
             params,
             pk,
             &[circuit],
@@ -444,8 +443,8 @@ fn gen_proof<
 
     let accept = {
         let mut transcript = TR::init(Cursor::new(proof.clone()));
-        VerificationStrategy::<_, VerifierGWC<_>>::finalize(
-            verify_proof::<_, VerifierGWC<_>, _, TR, _>(
+        VerificationStrategy::<_, VerifierSHPLONK<_>>::finalize(
+            verify_proof::<_, VerifierSHPLONK<_>, _, TR, _>(
                 params.verifier_params(),
                 pk.get_vk(),
                 AccumulatorStrategy::new(params.verifier_params()),
