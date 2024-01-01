@@ -35,7 +35,7 @@ use snark_verifier::{
     },
     verifier::SnarkVerifier,
 };
-use std::{fs::File, mem, path::Path, rc::Rc};
+use std::{fs::File, mem, path::Path, rc::Rc, cell::RefCell};
 
 use super::{CircuitExt, PoseidonTranscript, Snark, POSEIDON_SPEC};
 
@@ -279,7 +279,7 @@ impl TryFrom<BaseCircuitParams> for AggregationConfigParams {
 #[derive(Clone, Debug, Getters)]
 pub struct AggregationCircuit {
     /// Circuit builder consisting of virtual region managers
-    pub builder: BaseCircuitBuilder<Fr>,
+    pub builder: RefCell<BaseCircuitBuilder<Fr>>,
     // the public instances from previous snarks that were aggregated, now collected as PRIVATE assigned values
     // the user can optionally append these to `inner.assigned_instances` to expose them
     #[getset(get = "pub")]
@@ -461,7 +461,7 @@ impl AggregationCircuit {
         );
         // expose accumulator as public instances
         builder.assigned_instances[0] = accumulator;
-        Self { builder, previous_instances, preprocessed }
+        Self { builder: RefCell::new(builder), previous_instances, preprocessed }
     }
 
     /// Re-expose the previous public instances of aggregated snarks again.
@@ -470,18 +470,18 @@ impl AggregationCircuit {
     pub fn expose_previous_instances(&mut self, has_prev_accumulator: bool) {
         let start = (has_prev_accumulator as usize) * 4 * LIMBS;
         for prev in self.previous_instances.iter() {
-            self.builder.assigned_instances[0].extend_from_slice(&prev[start..]);
+            self.builder.borrow_mut().assigned_instances[0].extend_from_slice(&prev[start..]);
         }
     }
 
     /// The log_2 size of the lookup table
     pub fn lookup_bits(&self) -> usize {
-        self.builder.config_params.lookup_bits.unwrap()
+        self.builder.borrow().config_params.lookup_bits.unwrap()
     }
 
     /// Set config params
     pub fn set_params(&mut self, params: AggregationConfigParams) {
-        self.builder.set_params(params.into());
+        self.builder.borrow_mut().set_params(params.into());
     }
 
     /// Returns new with config params
@@ -492,12 +492,12 @@ impl AggregationCircuit {
 
     /// The break points of the circuit.
     pub fn break_points(&self) -> MultiPhaseThreadBreakPoints {
-        self.builder.break_points()
+        self.builder.borrow().break_points()
     }
 
     /// Sets the break points of the circuit.
     pub fn set_break_points(&mut self, break_points: MultiPhaseThreadBreakPoints) {
-        self.builder.set_break_points(break_points);
+        self.builder.borrow_mut().set_break_points(break_points);
     }
 
     /// Returns new with break points
@@ -508,7 +508,7 @@ impl AggregationCircuit {
 
     /// Auto-configure the circuit and change the circuit's internal configuration parameters.
     pub fn calculate_params(&mut self, minimum_rows: Option<usize>) -> AggregationConfigParams {
-        self.builder.calculate_params(minimum_rows).try_into().unwrap()
+        self.builder.borrow_mut().calculate_params(minimum_rows).try_into().unwrap()
     }
 }
 
@@ -535,7 +535,7 @@ impl Circuit<Fr> for AggregationCircuit {
     type Params = AggregationConfigParams;
 
     fn params(&self) -> Self::Params {
-        (&self.builder.config_params).try_into().unwrap()
+        (&self.builder.borrow().config_params).try_into().unwrap()
     }
 
     fn without_witnesses(&self) -> Self {
@@ -558,17 +558,17 @@ impl Circuit<Fr> for AggregationCircuit {
         config: Self::Config,
         layouter: impl Layouter<Fr>,
     ) -> Result<(), plonk::Error> {
-        self.builder.synthesize(config, layouter)
+        self.builder.borrow().synthesize(config, layouter)
     }
 }
 
 impl CircuitExt<Fr> for AggregationCircuit {
     fn num_instance(&self) -> Vec<usize> {
-        self.builder.num_instance()
+        self.builder.borrow().num_instance()
     }
 
     fn instances(&self) -> Vec<Vec<Fr>> {
-        self.builder.instances()
+        self.builder.borrow().instances()
     }
 
     fn accumulator_indices() -> Option<Vec<(usize, usize)>> {
