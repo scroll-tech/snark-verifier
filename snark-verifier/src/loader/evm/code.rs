@@ -6,64 +6,49 @@ pub enum Precompiled {
 }
 
 #[derive(Clone, Debug)]
-pub struct YulCode {
+pub struct SolidityAssemblyCode {
     // runtime code area
     runtime: String,
 }
 
-impl YulCode {
+impl SolidityAssemblyCode {
     pub fn new() -> Self {
-        YulCode {
-            runtime: String::new(),
-        }
+        Self { runtime: String::new() }
     }
 
     pub fn code(&self, base_modulus: String, scalar_modulus: String) -> String {
         format!(
             "
-        object \"plonk_verifier\" {{
-            code {{
-                function allocate(size) -> ptr {{
-                    ptr := mload(0x40)
-                    if eq(ptr, 0) {{ ptr := 0x60 }}
-                    mstore(0x40, add(ptr, size))
+// SPDX-License-Identifier: MIT
+
+pragma solidity >=0.8.19 <0.8.21;
+
+contract Halo2Verifier {{
+    fallback(bytes calldata) external returns (bytes memory) {{
+        assembly {{
+            let success := true
+            let f_p := {base_modulus}
+            let f_q := {scalar_modulus}
+            function validate_ec_point(x, y) -> valid {{
+                {{
+                    let x_lt_p := lt(x, {base_modulus})
+                    let y_lt_p := lt(y, {base_modulus})
+                    valid := and(x_lt_p, y_lt_p)
                 }}
-                let size := datasize(\"Runtime\")
-                let offset := allocate(size)
-                datacopy(offset, dataoffset(\"Runtime\"), size)
-                return(offset, size)
-            }}
-            object \"Runtime\" {{
-                code {{
-                    let success:bool := true
-                    let f_p := {base_modulus}
-                    let f_q := {scalar_modulus}
-                    function validate_ec_point(x, y) -> valid:bool {{
-                        {{
-                            let x_lt_p:bool := lt(x, {base_modulus})
-                            let y_lt_p:bool := lt(y, {base_modulus})
-                            valid := and(x_lt_p, y_lt_p)
-                        }}
-                        {{
-                            let x_is_zero:bool := eq(x, 0)
-                            let y_is_zero:bool := eq(y, 0)
-                            let x_or_y_is_zero:bool := or(x_is_zero, y_is_zero)
-                            let x_and_y_is_not_zero:bool := not(x_or_y_is_zero)
-                            valid := and(x_and_y_is_not_zero, valid)
-                        }}
-                        {{
-                            let y_square := mulmod(y, y, {base_modulus})
-                            let x_square := mulmod(x, x, {base_modulus})
-                            let x_cube := mulmod(x_square, x, {base_modulus})
-                            let x_cube_plus_3 := addmod(x_cube, 3, {base_modulus})
-                            let y_square_eq_x_cube_plus_3:bool := eq(x_cube_plus_3, y_square)
-                            valid := and(y_square_eq_x_cube_plus_3, valid)
-                        }}
-                    }}
-                    {}
+                {{
+                    let y_square := mulmod(y, y, {base_modulus})
+                    let x_square := mulmod(x, x, {base_modulus})
+                    let x_cube := mulmod(x_square, x, {base_modulus})
+                    let x_cube_plus_3 := addmod(x_cube, 3, {base_modulus})
+                    let is_affine := eq(x_cube_plus_3, y_square)
+                    valid := and(valid, is_affine)
                 }}
             }}
-        }}",
+            {}
+        }}
+    }}
+}}
+        ",
             self.runtime
         )
     }

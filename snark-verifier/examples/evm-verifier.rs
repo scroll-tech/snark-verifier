@@ -1,18 +1,17 @@
-use ethereum_types::Address;
 use halo2_base::halo2_proofs;
 use halo2_proofs::{
     circuit::{Layouter, SimpleFloorPlanner, Value},
     dev::MockProver,
     halo2curves::bn256::{Bn256, Fq, Fr, G1Affine},
     plonk::{
-        create_proof, keygen_pk, keygen_vk, verify_proof, Advice, Assigned, Circuit, Column,
+        create_proof, keygen_pk, keygen_vk, verify_proof, Advice, Circuit, Column,
         ConstraintSystem, Error, Fixed, Instance, ProvingKey, VerifyingKey,
     },
     poly::{
         commitment::{Params, ParamsProver},
         kzg::{
             commitment::{KZGCommitmentScheme, ParamsKZG},
-            multiopen::{ProverGWC, VerifierGWC},
+            multiopen::{ProverSHPLONK, VerifierSHPLONK},
             strategy::AccumulatorStrategy,
         },
         Rotation, VerificationStrategy,
@@ -22,14 +21,14 @@ use halo2_proofs::{
 use itertools::Itertools;
 use rand::{rngs::OsRng, RngCore};
 use snark_verifier::{
-    loader::evm::{self, encode_calldata, EvmLoader, ExecutorBuilder},
-    pcs::kzg::{Gwc19, Kzg},
+    loader::evm::{self, deploy_and_call, encode_calldata, EvmLoader},
+    pcs::kzg::{Bdfg21, KzgAs},
     system::halo2::{compile, transcript::evm::EvmTranscript, Config},
-    verifier::{self, PlonkVerifier},
+    verifier::{self, SnarkVerifier},
 };
 use std::rc::Rc;
 
-type Plonk = verifier::Plonk<Kzg<Bn256, Gwc19>>;
+type PlonkVerifier = verifier::plonk::PlonkVerifier<KzgAs<Bn256, Bdfg21>>;
 
 #[derive(Clone, Copy)]
 struct StandardPlonkConfig {
@@ -95,6 +94,7 @@ impl StandardPlonk {
 impl Circuit<Fr> for StandardPlonk {
     type Config = StandardPlonkConfig;
     type FloorPlanner = SimpleFloorPlanner;
+    type Params = ();
 
     fn without_witnesses(&self) -> Self {
         Self::default()
@@ -140,14 +140,14 @@ impl Circuit<Fr> for StandardPlonk {
                 }
                 #[cfg(feature = "halo2-axiom")]
                 {
-                    region.assign_advice(config.a, 0, Value::known(Assigned::Trivial(self.0)))?;
+                    region.assign_advice(config.a, 0, Value::known(Assigned::Trivial(self.0)));
                     region.assign_fixed(config.q_a, 0, Assigned::Trivial(-Fr::one()));
 
                     region.assign_advice(
                         config.a,
                         1,
                         Value::known(Assigned::Trivial(-Fr::from(5u64))),
-                    )?;
+                    );
                     for (idx, column) in (1..).zip([
                         config.q_a,
                         config.q_b,
@@ -162,7 +162,7 @@ impl Circuit<Fr> for StandardPlonk {
                         config.a,
                         2,
                         Value::known(Assigned::Trivial(Fr::one())),
-                    )?;
+                    );
                     a.copy_advice(&mut region, config.b, 3);
                     a.copy_advice(&mut region, config.c, 4);
                 }
@@ -192,22 +192,22 @@ fn gen_proof<C: Circuit<Fr>>(
     let instances = instances.iter().map(|instances| instances.as_slice()).collect_vec();
     let proof = {
         let mut transcript = TranscriptWriterBuffer::<_, G1Affine, _>::init(Vec::new());
-        create_proof::<KZGCommitmentScheme<Bn256>, ProverGWC<_>, _, _, EvmTranscript<_, _, _, _>, _>(
-            params,
-            pk,
-            &[circuit],
-            &[instances.as_slice()],
-            OsRng,
-            &mut transcript,
-        )
+        create_proof::<
+            KZGCommitmentScheme<Bn256>,
+            ProverSHPLONK<_>,
+            _,
+            _,
+            EvmTranscript<_, _, _, _>,
+            _,
+        >(params, pk, &[circuit], &[instances.as_slice()], OsRng, &mut transcript)
         .unwrap();
         transcript.finalize()
     };
 
     let accept = {
         let mut transcript = TranscriptReadBuffer::<_, G1Affine, _>::init(proof.as_slice());
-        VerificationStrategy::<_, VerifierGWC<_>>::finalize(
-            verify_proof::<_, VerifierGWC<_>, _, EvmTranscript<_, _, _, _>, _>(
+        VerificationStrategy::<_, VerifierSHPLONK<_>>::finalize(
+            verify_proof::<_, VerifierSHPLONK<_>, _, EvmTranscript<_, _, _, _>, _>(
                 params.verifier_params(),
                 pk.get_vk(),
                 AccumulatorStrategy::new(params.verifier_params()),
@@ -227,35 +227,24 @@ fn gen_evm_verifier(
     vk: &VerifyingKey<G1Affine>,
     num_instance: Vec<usize>,
 ) -> Vec<u8> {
-    let svk = params.get_g()[0].into();
-    let dk = (params.g2(), params.s_g2()).into();
     let protocol = compile(params, vk, Config::kzg().with_num_instance(num_instance.clone()));
+    let vk = (params.get_g()[0], params.g2(), params.s_g2()).into();
 
     let loader = EvmLoader::new::<Fq, Fr>();
     let protocol = protocol.loaded(&loader);
     let mut transcript = EvmTranscript::<_, Rc<EvmLoader>, _, _>::new(&loader);
 
     let instances = transcript.load_instances(num_instance);
-    let proof = Plonk::read_proof(&svk, &protocol, &instances, &mut transcript);
-    Plonk::verify(&svk, &dk, &protocol, &instances, &proof);
+    let proof = PlonkVerifier::read_proof(&vk, &protocol, &instances, &mut transcript).unwrap();
+    PlonkVerifier::verify(&vk, &protocol, &instances, &proof).unwrap();
 
-    evm::compile_yul(&loader.yul_code())
+    evm::compile_solidity(&loader.solidity_code())
 }
 
 fn evm_verify(deployment_code: Vec<u8>, instances: Vec<Vec<Fr>>, proof: Vec<u8>) {
     let calldata = encode_calldata(&instances, &proof);
-    let success = {
-        let mut evm = ExecutorBuilder::default().with_gas_limit(u64::MAX.into()).build();
-
-        let caller = Address::from_low_u64_be(0xfe);
-        let verifier = evm.deploy(caller, deployment_code.into(), 0.into()).address.unwrap();
-        let result = evm.call_raw(caller, verifier, calldata.into(), 0.into());
-
-        dbg!(result.gas_used);
-
-        !result.reverted
-    };
-    assert!(success);
+    let gas_cost = deploy_and_call(deployment_code, calldata).unwrap();
+    dbg!(gas_cost);
 }
 
 fn main() {

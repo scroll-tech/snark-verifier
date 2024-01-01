@@ -3,6 +3,7 @@ members = [
     "snark-verifier",
     "snark-verifier-sdk",
 ]
+resolver = "2"
 
 [profile.dev]
 opt-level = 3
@@ -34,6 +35,5 @@ incremental = false
 inherits = "release"
 debug = true
 
-# patch until PR https://github.com/privacy-scaling-explorations/halo2/pull/111 is merged
 [patch."https://github.com/privacy-scaling-explorations/halo2.git"]
-halo2_proofs = { git = "https://github.com/axiom-crypto/halo2.git", branch = "feat/serde-raw" }
+halo2_proofs = { git = "https://github.com/scroll-tech/halo2.git", branch = "sync-halo2-lib-0.4.0" }

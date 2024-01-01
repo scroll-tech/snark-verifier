@@ -1,26 +1,43 @@
-use crate::util::arithmetic::MultiMillerLoop;
+use crate::{
+    pcs::kzg::KzgSuccinctVerifyingKey,
+    util::arithmetic::{CurveAffine, MultiMillerLoop},
+};
 use std::marker::PhantomData;
 
+/// KZG deciding key.
 #[derive(Debug, Clone, Copy)]
 pub struct KzgDecidingKey<M: MultiMillerLoop> {
-    pub g2: M::G2Affine,
-    pub s_g2: M::G2Affine,
+    svk: KzgSuccinctVerifyingKey<M::G1Affine>,
+    /// Generator on G2.
+    g2: M::G2Affine,
+    /// Generator to the trusted-setup secret on G2.
+    s_g2: M::G2Affine,
     _marker: PhantomData<M>,
 }
 
 impl<M: MultiMillerLoop> KzgDecidingKey<M> {
-    pub fn new(g2: M::G2Affine, s_g2: M::G2Affine) -> Self {
-        Self {
-            g2,
-            s_g2,
-            _marker: PhantomData,
-        }
+    /// Initialize a [`KzgDecidingKey`]
+    pub fn new(
+        svk: impl Into<KzgSuccinctVerifyingKey<M::G1Affine>>,
+        g2: M::G2Affine,
+        s_g2: M::G2Affine,
+    ) -> Self {
+        Self { svk: svk.into(), g2, s_g2, _marker: PhantomData }
     }
 }
 
-impl<M: MultiMillerLoop> From<(M::G2Affine, M::G2Affine)> for KzgDecidingKey<M> {
-    fn from((g2, s_g2): (M::G2Affine, M::G2Affine)) -> KzgDecidingKey<M> {
-        KzgDecidingKey::new(g2, s_g2)
+impl<M: MultiMillerLoop> From<(M::G1Affine, M::G2Affine, M::G2Affine)> for KzgDecidingKey<M>
+where
+    M::G1Affine: CurveAffine<ScalarExt = M::Scalar, CurveExt = M::G1>,
+{
+    fn from((g1, g2, s_g2): (M::G1Affine, M::G2Affine, M::G2Affine)) -> KzgDecidingKey<M> {
+        KzgDecidingKey::new(g1, g2, s_g2)
+    }
+}
+
+impl<M: MultiMillerLoop> AsRef<KzgSuccinctVerifyingKey<M::G1Affine>> for KzgDecidingKey<M> {
+    fn as_ref(&self) -> &KzgSuccinctVerifyingKey<M::G1Affine> {
+        &self.svk
     }
 }
 
@@ -28,47 +45,45 @@ mod native {
     use crate::{
         loader::native::NativeLoader,
         pcs::{
-            kzg::{Kzg, KzgAccumulator, KzgDecidingKey},
-            Decider,
+            kzg::{KzgAccumulator, KzgAs, KzgDecidingKey},
+            AccumulationDecider,
         },
-        util::arithmetic::{Group, MillerLoopResult, MultiMillerLoop},
+        util::{
+            arithmetic::{CurveAffine, Group, MillerLoopResult, MultiMillerLoop},
+            Itertools,
+        },
+        Error,
     };
     use std::fmt::Debug;
 
-    impl<M, MOS> Decider<M::G1Affine, NativeLoader> for Kzg<M, MOS>
+    impl<M, MOS> AccumulationDecider<M::G1Affine, NativeLoader> for KzgAs<M, MOS>
     where
         M: MultiMillerLoop,
+        M::G1Affine: CurveAffine<ScalarExt = M::Scalar, CurveExt = M::G1>,
         MOS: Clone + Debug,
     {
         type DecidingKey = KzgDecidingKey<M>;
-        type Output = bool;
 
         fn decide(
             dk: &Self::DecidingKey,
             KzgAccumulator { lhs, rhs }: KzgAccumulator<M::G1Affine, NativeLoader>,
-        ) -> bool {
+        ) -> Result<(), Error> {
             let terms = [(&lhs, &dk.g2.into()), (&rhs, &(-dk.s_g2).into())];
-            M::multi_miller_loop(&terms)
-                .final_exponentiation()
-                .is_identity()
-                .into()
+            bool::from(M::multi_miller_loop(&terms).final_exponentiation().is_identity())
+                .then_some(())
+                .ok_or_else(|| Error::AssertionFailure("e(lhs, g2)·e(rhs, -s_g2) == O".to_string()))
         }
 
         fn decide_all(
             dk: &Self::DecidingKey,
             accumulators: Vec<KzgAccumulator<M::G1Affine, NativeLoader>>,
-        ) -> bool {
-            !accumulators
+        ) -> Result<(), Error> {
+            assert!(!accumulators.is_empty());
+            accumulators
                 .into_iter()
-                //.enumerate()
-                .any(|accumulator| {
-                    /*let decide = Self::decide(dk, accumulator);
-                    if !decide {
-                        panic!("{i}");
-                    }
-                    !decide*/
-                    !Self::decide(dk, accumulator)
-                })
+                .map(|accumulator| Self::decide(dk, accumulator))
+                .try_collect::<_, Vec<_>, _>()?;
+            Ok(())
         }
     }
 }
@@ -77,53 +92,55 @@ mod native {
 mod evm {
     use crate::{
         loader::{
-            evm::{loader::Value, EvmLoader},
+            evm::{loader::Value, EvmLoader, U256},
             LoadedScalar,
         },
         pcs::{
-            kzg::{Kzg, KzgAccumulator, KzgDecidingKey},
-            Decider,
+            kzg::{KzgAccumulator, KzgAs, KzgDecidingKey},
+            AccumulationDecider,
         },
         util::{
             arithmetic::{CurveAffine, MultiMillerLoop, PrimeField},
             msm::Msm,
         },
+        Error,
     };
-    use ethereum_types::U256;
     use std::{fmt::Debug, rc::Rc};
 
-    impl<M, MOS> Decider<M::G1Affine, Rc<EvmLoader>> for Kzg<M, MOS>
+    impl<M, MOS> AccumulationDecider<M::G1Affine, Rc<EvmLoader>> for KzgAs<M, MOS>
     where
         M: MultiMillerLoop,
+        M::G1Affine: CurveAffine<ScalarExt = M::Scalar, CurveExt = M::G1>,
+        M::G2Affine: CurveAffine<ScalarExt = M::Scalar, CurveExt = M::G2>,
         M::Scalar: PrimeField<Repr = [u8; 0x20]>,
         MOS: Clone + Debug,
     {
         type DecidingKey = KzgDecidingKey<M>;
-        type Output = ();
 
         fn decide(
             dk: &Self::DecidingKey,
             KzgAccumulator { lhs, rhs }: KzgAccumulator<M::G1Affine, Rc<EvmLoader>>,
-        ) {
+        ) -> Result<(), Error> {
             let loader = lhs.loader();
             let [g2, minus_s_g2] = [dk.g2, -dk.s_g2].map(|ec_point| {
                 let coordinates = ec_point.coordinates().unwrap();
                 let x = coordinates.x().to_repr();
                 let y = coordinates.y().to_repr();
                 (
-                    U256::from_little_endian(&x.as_ref()[32..]),
-                    U256::from_little_endian(&x.as_ref()[..32]),
-                    U256::from_little_endian(&y.as_ref()[32..]),
-                    U256::from_little_endian(&y.as_ref()[..32]),
+                    U256::try_from_le_slice(&x.as_ref()[32..]).unwrap(),
+                    U256::try_from_le_slice(&x.as_ref()[..32]).unwrap(),
+                    U256::try_from_le_slice(&y.as_ref()[32..]).unwrap(),
+                    U256::try_from_le_slice(&y.as_ref()[..32]).unwrap(),
                 )
             });
             loader.pairing(&lhs, g2, &rhs, minus_s_g2);
+            Ok(())
         }
 
         fn decide_all(
             dk: &Self::DecidingKey,
             mut accumulators: Vec<KzgAccumulator<M::G1Affine, Rc<EvmLoader>>>,
-        ) {
+        ) -> Result<(), Error> {
             assert!(!accumulators.is_empty());
 
             let accumulator = if accumulators.len() == 1 {
@@ -158,7 +175,7 @@ mod evm {
                 KzgAccumulator::new(lhs, rhs)
             };
 
-            Self::decide(dk, accumulator)
+            <Self as AccumulationDecider<M::G1Affine, Rc<EvmLoader>>>::decide(dk, accumulator)
         }
     }
 }

@@ -1,7 +1,9 @@
+//! Transcript for verifier on EVM.
+
 use crate::halo2_proofs;
 use crate::{
     loader::{
-        evm::{loader::Value, u256_to_fe, EcPoint, EvmLoader, MemoryChunk, Scalar},
+        evm::{loader::Value, u256_to_fe, util::MemoryChunk, EcPoint, EvmLoader, Scalar, U256},
         native::{self, NativeLoader},
         Loader,
     },
@@ -13,7 +15,6 @@ use crate::{
     },
     Error,
 };
-use ethereum_types::U256;
 use halo2_proofs::transcript::EncodedChallenge;
 use std::{
     io::{self, Read, Write},
@@ -21,6 +22,9 @@ use std::{
     marker::PhantomData,
     rc::Rc,
 };
+
+/// Transcript for verifier on EVM using keccak256 as hasher.
+#[derive(Debug)]
 pub struct EvmTranscript<C: CurveAffine, L: Loader<C>, S, B> {
     loader: L,
     stream: S,
@@ -33,6 +37,8 @@ where
     C: CurveAffine,
     C::Scalar: PrimeField<Repr = [u8; 0x20]>,
 {
+    /// Initialize [`EvmTranscript`] given [`Rc<EvmLoader>`] and pre-allocate an
+    /// u256 for `transcript_initial_state`.
     pub fn new(loader: &Rc<EvmLoader>) -> Self {
         let ptr = loader.allocate(0x20);
         assert_eq!(ptr, 0);
@@ -41,6 +47,7 @@ where
         Self { loader: loader.clone(), stream: 0, buf, _marker: PhantomData }
     }
 
+    /// Load `num_instance` instances from calldata to memory.
     pub fn load_instances(&mut self, num_instance: Vec<usize>) -> Vec<Vec<Scalar>> {
         num_instance
             .into_iter()
@@ -66,6 +73,8 @@ where
         &self.loader
     }
 
+    /// Does not allow the input to be a one-byte sequence, because the Transcript trait only supports writing scalars and elliptic curve points.
+    /// If the one-byte sequence [0x01] is a valid input to the transcript, the empty input [] will have the same transcript result as [0x01].
     fn squeeze_challenge(&mut self) -> Scalar {
         let len = if self.buf.len() == 0x20 {
             assert_eq!(self.loader.ptr(), self.buf.end());
@@ -144,6 +153,8 @@ impl<C, S> EvmTranscript<C, NativeLoader, S, Vec<u8>>
 where
     C: CurveAffine,
 {
+    /// Initialize [`EvmTranscript`] given readable or writeable stream for
+    /// verifying or proving with [`NativeLoader`].
     pub fn new(stream: S) -> Self {
         Self { loader: NativeLoader, stream, buf: Vec::new(), _marker: PhantomData }
     }
@@ -167,16 +178,13 @@ where
             .collect_vec();
         let hash: [u8; 32] = Keccak256::digest(data).into();
         self.buf = hash.to_vec();
-        u256_to_fe(U256::from_big_endian(hash.as_slice()))
+        u256_to_fe(U256::from_be_bytes(hash))
     }
 
     fn common_ec_point(&mut self, ec_point: &C) -> Result<(), Error> {
         let coordinates =
             Option::<Coordinates<C>>::from(ec_point.coordinates()).ok_or_else(|| {
-                Error::Transcript(
-                    io::ErrorKind::Other,
-                    "Cannot write points at infinity to the transcript".to_string(),
-                )
+                Error::Transcript(io::ErrorKind::Other, "Invalid elliptic curve point".to_string())
             })?;
 
         [coordinates.x(), coordinates.y()].map(|coordinate| {
@@ -239,15 +247,20 @@ where
     C: CurveAffine,
     S: Write,
 {
+    /// Returns mutable `stream`.
     pub fn stream_mut(&mut self) -> &mut S {
         &mut self.stream
     }
 
+    /// Finalize transcript and returns `stream`.
     pub fn finalize(self) -> S {
         self.stream
     }
 }
 
+/// [`EncodedChallenge`] implemented for verifier on EVM, which use input in
+/// big-endian as the challenge.
+#[derive(Debug)]
 pub struct ChallengeEvm<C>(C::Scalar)
 where
     C: CurveAffine,
@@ -261,7 +274,7 @@ where
     type Input = [u8; 32];
 
     fn new(challenge_input: &[u8; 32]) -> Self {
-        ChallengeEvm(u256_to_fe(U256::from_big_endian(challenge_input)))
+        ChallengeEvm(u256_to_fe(U256::from_be_bytes(*challenge_input)))
     }
 
     fn get_scalar(&self) -> C::Scalar {

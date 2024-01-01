@@ -1,23 +1,24 @@
+use ark_std::{end_timer, start_timer, test_rng};
 use criterion::{criterion_group, criterion_main};
 use criterion::{BenchmarkId, Criterion};
-use pprof::criterion::{Output, PProfProfiler};
-
-use ark_std::{end_timer, start_timer};
+use halo2_base::gates::circuit::CircuitBuilderStage;
 use halo2_base::halo2_proofs;
+use halo2_base::utils::fs::gen_srs;
 use halo2_proofs::halo2curves as halo2_curves;
 use halo2_proofs::{
     halo2curves::bn256::Bn256,
     poly::{commitment::Params, kzg::commitment::ParamsKZG},
 };
+use pprof::criterion::{Output, PProfProfiler};
 use rand::rngs::OsRng;
-use rand::SeedableRng;
-use rand_chacha::ChaCha20Rng;
-use snark_verifier_sdk::CircuitExt;
+use snark_verifier_sdk::evm::{evm_verify, gen_evm_proof_shplonk, gen_evm_verifier_shplonk};
+use snark_verifier_sdk::halo2::aggregation::{AggregationConfigParams, VerifierUniversality};
 use snark_verifier_sdk::{
     gen_pk,
     halo2::{aggregation::AggregationCircuit, gen_proof_shplonk, gen_snark_shplonk},
     Snark,
 };
+use snark_verifier_sdk::{CircuitExt, SHPLONK};
 
 mod application {
     use super::halo2_curves::bn256::Fr;
@@ -96,6 +97,7 @@ mod application {
     impl Circuit<Fr> for StandardPlonk {
         type Config = StandardPlonkConfig;
         type FloorPlanner = SimpleFloorPlanner;
+        type Params = ();
 
         fn without_witnesses(&self) -> Self {
             Self::default()
@@ -145,9 +147,9 @@ mod application {
                     }
                     #[cfg(feature = "halo2-axiom")]
                     {
-                        region.assign_advice(config.a, 0, Value::known(self.0))?;
+                        region.assign_advice(config.a, 0, Value::known(self.0));
                         region.assign_fixed(config.q_a, 0, -Fr::one());
-                        region.assign_advice(config.a, 1, Value::known(-Fr::from(5u64)))?;
+                        region.assign_advice(config.a, 1, Value::known(-Fr::from(5u64)));
                         for (idx, column) in (1..).zip([
                             config.q_a,
                             config.q_b,
@@ -158,7 +160,7 @@ mod application {
                             region.assign_fixed(column, 1, Fr::from(idx as u64));
                         }
 
-                        let a = region.assign_advice(config.a, 2, Value::known(Fr::one()))?;
+                        let a = region.assign_advice(config.a, 2, Value::known(Fr::one()));
                         a.copy_advice(&mut region, config.b, 3);
                         a.copy_advice(&mut region, config.c, 4);
                     }
@@ -171,44 +173,81 @@ mod application {
 }
 
 fn gen_application_snark(params: &ParamsKZG<Bn256>) -> Snark {
+    let mut rng = test_rng();
     let circuit = application::StandardPlonk::rand(OsRng);
 
     let pk = gen_pk(params, &circuit, None);
-    gen_snark_shplonk(params, &pk, circuit, &mut OsRng, None::<&str>)
+    gen_snark_shplonk(params, &pk, circuit, &mut rng, None::<&str>)
 }
 
 fn bench(c: &mut Criterion) {
-    std::env::set_var("VERIFY_CONFIG", "./configs/example_evm_accumulator.config");
-    let k = 21;
-    let params = halo2_base::utils::fs::gen_srs(k);
-    let params_app = {
-        let mut params = params.clone();
-        params.downsize(8);
-        params
-    };
+    let path = "./configs/example_evm_accumulator.json";
+    let mut rng = test_rng();
+    let params_app = gen_srs(8);
 
     let snarks = [(); 3].map(|_| gen_application_snark(&params_app));
+    let agg_config = AggregationConfigParams::from_path(path);
+    let params = gen_srs(agg_config.degree);
 
-    let start1 = start_timer!(|| "Create aggregation circuit");
-    let mut rng = ChaCha20Rng::from_entropy();
-    let agg_circuit = AggregationCircuit::new(&params, snarks, &mut rng);
-    end_timer!(start1);
+    let agg_circuit = AggregationCircuit::new::<SHPLONK>(
+        CircuitBuilderStage::Keygen,
+        agg_config,
+        &params,
+        snarks.clone(),
+        VerifierUniversality::None,
+    );
 
+    let start0 = start_timer!(|| "gen vk & pk");
     let pk = gen_pk(&params, &agg_circuit, None);
+    end_timer!(start0);
+    let break_points = agg_circuit.break_points();
+    drop(agg_circuit);
 
     let mut group = c.benchmark_group("plonk-prover");
     group.sample_size(10);
     group.bench_with_input(
-        BenchmarkId::new("standard-plonk-agg", k),
-        &(&params, &pk, &agg_circuit),
-        |b, &(params, pk, agg_circuit)| {
+        BenchmarkId::new("standard-plonk-agg", params.k()),
+        &(&params, &pk, &break_points, &snarks),
+        |b, &(params, pk, break_points, snarks)| {
             b.iter(|| {
+                let agg_circuit = AggregationCircuit::new::<SHPLONK>(
+                    CircuitBuilderStage::Prover,
+                    agg_config,
+                    params,
+                    snarks.clone(),
+                    VerifierUniversality::None,
+                )
+                .use_break_points(break_points.clone());
                 let instances = agg_circuit.instances();
-                gen_proof_shplonk(params, pk, agg_circuit.clone(), instances, &mut rng, None)
+                gen_proof_shplonk(params, pk, agg_circuit, instances, &mut rng, None)
             })
         },
     );
     group.finish();
+
+    #[cfg(feature = "loader_evm")]
+    {
+        // do one more time to verify
+        let agg_circuit = AggregationCircuit::new::<SHPLONK>(
+            CircuitBuilderStage::Prover,
+            agg_config,
+            &params,
+            snarks.clone(),
+            VerifierUniversality::None,
+        )
+        .use_break_points(break_points);
+        let num_instances = agg_circuit.num_instance();
+        let instances = agg_circuit.instances();
+        let proof = gen_evm_proof_shplonk(&params, &pk, agg_circuit, instances.clone(), &mut rng);
+
+        let deployment_code = gen_evm_verifier_shplonk::<AggregationCircuit>(
+            &params,
+            pk.get_vk(),
+            num_instances,
+            None,
+        );
+        evm_verify(deployment_code, instances, proof);
+    }
 }
 
 criterion_group! {

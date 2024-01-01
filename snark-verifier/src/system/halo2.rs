@@ -1,3 +1,5 @@
+//! [`halo2_proofs`] proof system
+
 use crate::halo2_proofs::{
     plonk::{self, Any, ConstraintSystem, FirstPhase, SecondPhase, ThirdPhase, VerifyingKey},
     poly::{self, commitment::Params},
@@ -5,63 +7,68 @@ use crate::halo2_proofs::{
 };
 use crate::{
     util::{
-        arithmetic::{root_of_unity, CurveAffine, Domain, FieldExt, Rotation},
-        protocol::{
-            CommonPolynomial, Expression, InstanceCommittingKey, Query, QuotientPolynomial,
-        },
+        arithmetic::{root_of_unity, CurveAffine, Domain, PrimeField, Rotation},
         Itertools,
     },
-    Protocol,
+    verifier::plonk::protocol::{
+        CommonPolynomial, Expression, InstanceCommittingKey, PlonkProtocol, Query,
+        QuotientPolynomial,
+    },
 };
 use num_integer::Integer;
 use std::{io, iter, mem::size_of};
 
-// pub mod strategy;
+pub mod strategy;
 pub mod transcript;
 
-#[cfg(test)]
-#[cfg(feature = "loader_halo2")]
-pub(crate) mod test;
-
+/// Configuration for converting a [`VerifyingKey`] of [`halo2_proofs`] into
+/// [`PlonkProtocol`].
 #[derive(Clone, Debug, Default)]
 pub struct Config {
-    pub zk: bool,
-    pub query_instance: bool,
-    pub num_proof: usize,
-    pub num_instance: Vec<usize>,
-    pub accumulator_indices: Option<Vec<(usize, usize)>>,
+    zk: bool,
+    query_instance: bool,
+    num_proof: usize,
+    num_instance: Vec<usize>,
+    accumulator_indices: Option<Vec<(usize, usize)>>,
 }
 
 impl Config {
+    /// Returns [`Config`] with `query_instance` set to `false`.
     pub fn kzg() -> Self {
         Self { zk: true, query_instance: false, num_proof: 1, ..Default::default() }
     }
 
+    /// Returns [`Config`] with `query_instance` set to `true`.
     pub fn ipa() -> Self {
         Self { zk: true, query_instance: true, num_proof: 1, ..Default::default() }
     }
 
+    /// Set `zk`
     pub fn set_zk(mut self, zk: bool) -> Self {
         self.zk = zk;
         self
     }
 
+    /// Set `query_instance`
     pub fn set_query_instance(mut self, query_instance: bool) -> Self {
         self.query_instance = query_instance;
         self
     }
 
+    /// Set `num_proof`
     pub fn with_num_proof(mut self, num_proof: usize) -> Self {
         assert!(num_proof > 0);
         self.num_proof = num_proof;
         self
     }
 
+    /// Set `num_instance`
     pub fn with_num_instance(mut self, num_instance: Vec<usize>) -> Self {
         self.num_instance = num_instance;
         self
     }
 
+    /// Set `accumulator_indices`
     pub fn with_accumulator_indices(
         mut self,
         accumulator_indices: Option<Vec<(usize, usize)>>,
@@ -71,11 +78,12 @@ impl Config {
     }
 }
 
+/// Convert a [`VerifyingKey`] of [`halo2_proofs`] into [`PlonkProtocol`].
 pub fn compile<'a, C: CurveAffine, P: Params<'a, C>>(
     params: &P,
     vk: &VerifyingKey<C>,
     config: Config,
-) -> Protocol<C> {
+) -> PlonkProtocol<C> {
     assert_eq!(vk.get_domain().k(), params.k());
 
     let cs = vk.cs();
@@ -103,7 +111,7 @@ pub fn compile<'a, C: CurveAffine, P: Params<'a, C>>(
         .chain((0..num_proof).flat_map(move |t| polynomials.permutation_z_queries::<true>(t)))
         .chain((0..num_proof).flat_map(move |t| polynomials.lookup_queries::<true>(t)))
         .collect();
-
+    // `quotient_query()` is not needed in evaluations because the verifier can compute it itself from the other evaluations.
     let queries = (0..num_proof)
         .flat_map(|t| {
             iter::empty()
@@ -123,7 +131,7 @@ pub fn compile<'a, C: CurveAffine, P: Params<'a, C>>(
     let instance_committing_key = query_instance.then(|| {
         instance_committing_key(
             params,
-            Iterator::max(polynomials.num_instance().into_iter()).unwrap_or_default(),
+            polynomials.num_instance().into_iter().max().unwrap_or_default(),
         )
     });
 
@@ -131,8 +139,9 @@ pub fn compile<'a, C: CurveAffine, P: Params<'a, C>>(
         .map(|accumulator_indices| polynomials.accumulator_indices(accumulator_indices))
         .unwrap_or_default();
 
-    Protocol {
+    PlonkProtocol {
         domain,
+        domain_as_witness: None,
         preprocessed,
         num_instance: polynomials.num_instance(),
         num_witness: polynomials.num_witness(),
@@ -153,7 +162,7 @@ impl From<poly::Rotation> for Rotation {
     }
 }
 
-struct Polynomials<'a, F: FieldExt> {
+struct Polynomials<'a, F: PrimeField> {
     cs: &'a ConstraintSystem<F>,
     zk: bool,
     query_instance: bool,
@@ -171,7 +180,7 @@ struct Polynomials<'a, F: FieldExt> {
     num_lookup_z: usize,
 }
 
-impl<'a, F: FieldExt> Polynomials<'a, F> {
+impl<'a, F: PrimeField> Polynomials<'a, F> {
     fn new(
         cs: &'a ConstraintSystem<F>,
         zk: bool,
@@ -466,7 +475,7 @@ impl<'a, F: FieldExt> Polynomials<'a, F> {
     }
 
     fn l_active(&self) -> Expression<F> {
-        Expression::Constant(F::one()) - self.l_last() - self.l_blind()
+        Expression::Constant(F::ONE) - self.l_last() - self.l_blind()
     }
 
     fn system_challenge_offset(&self) -> usize {
@@ -491,7 +500,7 @@ impl<'a, F: FieldExt> Polynomials<'a, F> {
     }
 
     fn permutation_constraints(&'a self, t: usize) -> impl IntoIterator<Item = Expression<F>> + 'a {
-        let one = &Expression::Constant(F::one());
+        let one = &Expression::Constant(F::ONE);
         let l_0 = &Expression::<F>::CommonPolynomial(CommonPolynomial::Lagrange(0));
         let l_last = &self.l_last();
         let l_active = &self.l_active();
@@ -583,7 +592,7 @@ impl<'a, F: FieldExt> Polynomials<'a, F> {
     }
 
     fn lookup_constraints(&'a self, t: usize) -> impl IntoIterator<Item = Expression<F>> + 'a {
-        let one = &Expression::Constant(F::one());
+        let one = &Expression::Constant(F::ONE);
         let l_0 = &Expression::<F>::CommonPolynomial(CommonPolynomial::Lagrange(0));
         let l_last = &self.l_last();
         let l_active = &self.l_active();
@@ -690,7 +699,7 @@ impl<C: CurveAffine> EncodedChallenge<C> for MockChallenge {
 }
 
 #[derive(Default)]
-struct MockTranscript<F: FieldExt>(F);
+struct MockTranscript<F: PrimeField>(F);
 
 impl<C: CurveAffine> Transcript<C, MockChallenge> for MockTranscript<C::Scalar> {
     fn squeeze_challenge(&mut self) -> MockChallenge {
@@ -707,7 +716,9 @@ impl<C: CurveAffine> Transcript<C, MockChallenge> for MockTranscript<C::Scalar> 
     }
 }
 
-fn transcript_initial_state<C: CurveAffine>(vk: &VerifyingKey<C>) -> C::Scalar {
+/// Returns the transcript initial state of the [VerifyingKey].
+/// Roundabout way to do it because [VerifyingKey] doesn't expose the field.
+pub fn transcript_initial_state<C: CurveAffine>(vk: &VerifyingKey<C>) -> C::Scalar {
     let mut transcript = MockTranscript::default();
     vk.hash_into(&mut transcript).unwrap();
     transcript.0

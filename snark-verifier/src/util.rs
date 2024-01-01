@@ -1,8 +1,9 @@
+//! Utilities.
+
 pub mod arithmetic;
 pub mod hash;
 pub mod msm;
 pub mod poly;
-pub mod protocol;
 pub mod transcript;
 
 pub(crate) use itertools::Itertools;
@@ -10,6 +11,7 @@ pub(crate) use itertools::Itertools;
 #[cfg(feature = "parallel")]
 pub(crate) use rayon::current_num_threads;
 
+/// Parallelly executing the function on the items of the given iterator.
 pub fn parallelize_iter<I, T, F>(iter: I, f: F)
 where
     I: Send + Iterator<Item = T>,
@@ -27,6 +29,7 @@ where
     iter.for_each(f);
 }
 
+/// Parallelly executing the function on the given mutable slice.
 pub fn parallelize<T, F>(v: &mut [T], f: F)
 where
     T: Send,

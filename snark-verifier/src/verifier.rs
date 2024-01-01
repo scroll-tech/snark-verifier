@@ -1,50 +1,44 @@
+//! Verifiers for (S)NARK.
+
 use crate::{
     loader::Loader,
-    pcs::{Decider, MultiOpenScheme},
     util::{arithmetic::CurveAffine, transcript::TranscriptRead},
-    Protocol,
+    Error,
 };
 use std::fmt::Debug;
 
-mod plonk;
+pub mod plonk;
 
-pub use plonk::{Plonk, PlonkProof};
-
-pub trait PlonkVerifier<C, L, MOS>
+/// (S)NARK verifier for verifying a (S)NARK.
+pub trait SnarkVerifier<C, L>
 where
     C: CurveAffine,
     L: Loader<C>,
-    MOS: MultiOpenScheme<C, L>,
 {
+    /// Verifying key for subroutines if any.
+    type VerifyingKey: Clone + Debug;
+    /// Protocol specifying configuration of a (S)NARK.
+    type Protocol: Clone + Debug;
+    /// Structured proof read from transcript.
     type Proof: Clone + Debug;
+    /// Output of verification.
+    type Output: Clone + Debug;
 
+    /// Read [`SnarkVerifier::Proof`] from transcript.
     fn read_proof<T>(
-        svk: &MOS::SuccinctVerifyingKey,
-        protocol: &Protocol<C, L>,
+        vk: &Self::VerifyingKey,
+        protocol: &Self::Protocol,
         instances: &[Vec<L::LoadedScalar>],
         transcript: &mut T,
-    ) -> Self::Proof
+    ) -> Result<Self::Proof, Error>
     where
         T: TranscriptRead<C, L>;
 
-    fn succinct_verify(
-        svk: &MOS::SuccinctVerifyingKey,
-        protocol: &Protocol<C, L>,
-        instances: &[Vec<L::LoadedScalar>],
-        proof: &Self::Proof,
-    ) -> Vec<MOS::Accumulator>;
-
+    /// Verify [`SnarkVerifier::Proof`] and output [`SnarkVerifier::Output`].
     fn verify(
-        svk: &MOS::SuccinctVerifyingKey,
-        dk: &MOS::DecidingKey,
-        protocol: &Protocol<C, L>,
+        vk: &Self::VerifyingKey,
+        protocol: &Self::Protocol,
         instances: &[Vec<L::LoadedScalar>],
         proof: &Self::Proof,
-    ) -> MOS::Output
-    where
-        MOS: Decider<C, L>,
-    {
-        let accumulators = Self::succinct_verify(svk, protocol, instances, proof);
-        MOS::decide_all(dk, accumulators)
-    }
+    ) -> Result<Self::Output, Error>;
 }

@@ -1,4 +1,3 @@
-use crate::halo2_proofs::circuit;
 use crate::{
     loader::{
         halo2::shim::{EccInstructions, IntegerInstructions},
@@ -17,18 +16,22 @@ use std::{
     rc::Rc,
 };
 
+/// `Loader` implementation for generating verifier in [`halo2_proofs`] circuit.
 #[derive(Debug)]
-pub struct Halo2Loader<'a, C: CurveAffine, EccChip: EccInstructions<'a, C>> {
+pub struct Halo2Loader<C: CurveAffine, EccChip: EccInstructions<C>> {
     ecc_chip: RefCell<EccChip>,
     ctx: RefCell<EccChip::Context>,
     num_scalar: RefCell<usize>,
     num_ec_point: RefCell<usize>,
     _marker: PhantomData<C>,
     #[cfg(test)]
+    #[allow(dead_code)]
     row_meterings: RefCell<Vec<(String, usize)>>,
 }
 
-impl<'a, C: CurveAffine, EccChip: EccInstructions<'a, C>> Halo2Loader<'a, C, EccChip> {
+impl<C: CurveAffine, EccChip: EccInstructions<C>> Halo2Loader<C, EccChip> {
+    /// Initialize a [`Halo2Loader`] with given [`EccInstructions`] and
+    /// [`EccInstructions::Context`].
     pub fn new(ecc_chip: EccChip, ctx: EccChip::Context) -> Rc<Self> {
         Rc::new(Self {
             ecc_chip: RefCell::new(ecc_chip),
@@ -41,77 +44,82 @@ impl<'a, C: CurveAffine, EccChip: EccInstructions<'a, C>> Halo2Loader<'a, C, Ecc
         })
     }
 
+    /// Into [`EccInstructions::Context`].
     pub fn into_ctx(self) -> EccChip::Context {
         self.ctx.into_inner()
     }
 
+    /// Takes [`EccInstructions::Context`] from the [`RefCell`], leaving with Default value
+    pub fn take_ctx(&self) -> EccChip::Context {
+        self.ctx.take()
+    }
+
+    /// Returns reference of [`EccInstructions`].
     pub fn ecc_chip(&self) -> Ref<EccChip> {
         self.ecc_chip.borrow()
     }
 
+    /// Returns reference of [`EccInstructions::ScalarChip`].
     pub fn scalar_chip(&self) -> Ref<EccChip::ScalarChip> {
         Ref::map(self.ecc_chip(), |ecc_chip| ecc_chip.scalar_chip())
     }
 
+    /// Returns reference of [`EccInstructions::Context`].
     pub fn ctx(&self) -> Ref<EccChip::Context> {
         self.ctx.borrow()
     }
 
+    /// Returns mutable reference of [`EccInstructions::Context`].
     pub fn ctx_mut(&self) -> RefMut<'_, EccChip::Context> {
         self.ctx.borrow_mut()
     }
 
     fn assign_const_scalar(self: &Rc<Self>, constant: C::Scalar) -> EccChip::AssignedScalar {
-        self.scalar_chip().assign_constant(&mut self.ctx_mut(), constant).unwrap()
+        self.scalar_chip().assign_constant(&mut self.ctx_mut(), constant)
     }
 
-    pub fn assign_scalar(
-        self: &Rc<Self>,
-        scalar: circuit::Value<C::Scalar>,
-    ) -> Scalar<'a, C, EccChip> {
-        let assigned = self.scalar_chip().assign_integer(&mut self.ctx_mut(), scalar).unwrap();
+    /// Assign a field element witness.
+    pub fn assign_scalar(self: &Rc<Self>, scalar: C::Scalar) -> Scalar<C, EccChip> {
+        let assigned = self.scalar_chip().assign_integer(&mut self.ctx_mut(), scalar);
         self.scalar_from_assigned(assigned)
     }
 
+    /// Returns [`Scalar`] with assigned field element.
     pub fn scalar_from_assigned(
         self: &Rc<Self>,
         assigned: EccChip::AssignedScalar,
-    ) -> Scalar<'a, C, EccChip> {
+    ) -> Scalar<C, EccChip> {
         self.scalar(Value::Assigned(assigned))
     }
 
     fn scalar(
         self: &Rc<Self>,
         value: Value<C::Scalar, EccChip::AssignedScalar>,
-    ) -> Scalar<'a, C, EccChip> {
+    ) -> Scalar<C, EccChip> {
         let index = *self.num_scalar.borrow();
         *self.num_scalar.borrow_mut() += 1;
         Scalar { loader: self.clone(), index, value: value.into() }
     }
 
     fn assign_const_ec_point(self: &Rc<Self>, constant: C) -> EccChip::AssignedEcPoint {
-        self.ecc_chip().assign_constant(&mut self.ctx_mut(), constant).unwrap()
+        self.ecc_chip().assign_constant(&mut self.ctx_mut(), constant)
     }
 
-    pub fn assign_ec_point(
-        self: &Rc<Self>,
-        ec_point: circuit::Value<C>,
-    ) -> EcPoint<'a, C, EccChip> {
-        let assigned = self.ecc_chip().assign_point(&mut self.ctx_mut(), ec_point).unwrap();
+    /// Assign an elliptic curve point witness.
+    pub fn assign_ec_point(self: &Rc<Self>, ec_point: C) -> EcPoint<C, EccChip> {
+        let assigned = self.ecc_chip().assign_point(&mut self.ctx_mut(), ec_point);
         self.ec_point_from_assigned(assigned)
     }
 
+    /// Returns [`EcPoint`] with assigned elliptic curve point.
     pub fn ec_point_from_assigned(
         self: &Rc<Self>,
         assigned: EccChip::AssignedEcPoint,
-    ) -> EcPoint<'a, C, EccChip> {
+    ) -> EcPoint<C, EccChip> {
         self.ec_point(Value::Assigned(assigned))
     }
 
-    fn ec_point(
-        self: &Rc<Self>,
-        value: Value<C, EccChip::AssignedEcPoint>,
-    ) -> EcPoint<'a, C, EccChip> {
+    fn ec_point(self: &Rc<Self>, value: Value<C, EccChip::AssignedEcPoint>) -> EcPoint<C, EccChip> {
         let index = *self.num_ec_point.borrow();
         *self.num_ec_point.borrow_mut() += 1;
         EcPoint { loader: self.clone(), index, value: value.into() }
@@ -119,146 +127,106 @@ impl<'a, C: CurveAffine, EccChip: EccInstructions<'a, C>> Halo2Loader<'a, C, Ecc
 
     fn add(
         self: &Rc<Self>,
-        lhs: &Scalar<'a, C, EccChip>,
-        rhs: &Scalar<'a, C, EccChip>,
-    ) -> Scalar<'a, C, EccChip> {
+        lhs: &Scalar<C, EccChip>,
+        rhs: &Scalar<C, EccChip>,
+    ) -> Scalar<C, EccChip> {
         let output = match (lhs.value().deref(), rhs.value().deref()) {
             (Value::Constant(lhs), Value::Constant(rhs)) => Value::Constant(*lhs + rhs),
             (Value::Assigned(assigned), Value::Constant(constant))
-            | (Value::Constant(constant), Value::Assigned(assigned)) => self
-                .scalar_chip()
-                .sum_with_coeff_and_const(
+            | (Value::Constant(constant), Value::Assigned(assigned)) => {
+                Value::Assigned(self.scalar_chip().sum_with_coeff_and_const(
                     &mut self.ctx_mut(),
-                    &[(C::Scalar::one(), assigned)],
+                    &[(C::Scalar::ONE, assigned)],
                     *constant,
-                )
-                .map(Value::Assigned)
-                .unwrap(),
-            (Value::Assigned(lhs), Value::Assigned(rhs)) => self
-                .scalar_chip()
-                .sum_with_coeff_and_const(
+                ))
+            }
+            (Value::Assigned(lhs), Value::Assigned(rhs)) => {
+                Value::Assigned(self.scalar_chip().sum_with_coeff_and_const(
                     &mut self.ctx_mut(),
-                    &[(C::Scalar::one(), lhs), (C::Scalar::one(), rhs)],
-                    C::Scalar::zero(),
-                )
-                .map(Value::Assigned)
-                .unwrap(),
+                    &[(C::Scalar::ONE, lhs), (C::Scalar::ONE, rhs)],
+                    C::Scalar::ZERO,
+                ))
+            }
         };
         self.scalar(output)
     }
 
     fn sub(
         self: &Rc<Self>,
-        lhs: &Scalar<'a, C, EccChip>,
-        rhs: &Scalar<'a, C, EccChip>,
-    ) -> Scalar<'a, C, EccChip> {
+        lhs: &Scalar<C, EccChip>,
+        rhs: &Scalar<C, EccChip>,
+    ) -> Scalar<C, EccChip> {
         let output = match (lhs.value().deref(), rhs.value().deref()) {
             (Value::Constant(lhs), Value::Constant(rhs)) => Value::Constant(*lhs - rhs),
-            (Value::Constant(constant), Value::Assigned(assigned)) => self
-                .scalar_chip()
-                .sum_with_coeff_and_const(
+            (Value::Constant(constant), Value::Assigned(assigned)) => {
+                Value::Assigned(self.scalar_chip().sum_with_coeff_and_const(
                     &mut self.ctx_mut(),
-                    &[(-C::Scalar::one(), assigned)],
+                    &[(-C::Scalar::ONE, assigned)],
                     *constant,
-                )
-                .map(Value::Assigned)
-                .unwrap(),
-            (Value::Assigned(assigned), Value::Constant(constant)) => self
-                .scalar_chip()
-                .sum_with_coeff_and_const(
-                    &mut self.ctx_mut(),
-                    &[(C::Scalar::one(), assigned)],
-                    -*constant,
-                )
-                .map(Value::Assigned)
-                .unwrap(),
-            (Value::Assigned(lhs), Value::Assigned(rhs)) => {
-                IntegerInstructions::sub(self.scalar_chip().deref(), &mut self.ctx_mut(), lhs, rhs)
-                    .map(Value::Assigned)
-                    .unwrap()
+                ))
             }
+            (Value::Assigned(assigned), Value::Constant(constant)) => {
+                Value::Assigned(self.scalar_chip().sum_with_coeff_and_const(
+                    &mut self.ctx_mut(),
+                    &[(C::Scalar::ONE, assigned)],
+                    -*constant,
+                ))
+            }
+            (Value::Assigned(lhs), Value::Assigned(rhs)) => Value::Assigned(
+                IntegerInstructions::sub(self.scalar_chip().deref(), &mut self.ctx_mut(), lhs, rhs),
+            ),
         };
         self.scalar(output)
     }
 
     fn mul(
         self: &Rc<Self>,
-        lhs: &Scalar<'a, C, EccChip>,
-        rhs: &Scalar<'a, C, EccChip>,
-    ) -> Scalar<'a, C, EccChip> {
+        lhs: &Scalar<C, EccChip>,
+        rhs: &Scalar<C, EccChip>,
+    ) -> Scalar<C, EccChip> {
         let output = match (lhs.value().deref(), rhs.value().deref()) {
             (Value::Constant(lhs), Value::Constant(rhs)) => Value::Constant(*lhs * rhs),
             (Value::Assigned(assigned), Value::Constant(constant))
-            | (Value::Constant(constant), Value::Assigned(assigned)) => self
-                .scalar_chip()
-                .sum_with_coeff_and_const(
+            | (Value::Constant(constant), Value::Assigned(assigned)) => {
+                Value::Assigned(self.scalar_chip().sum_with_coeff_and_const(
                     &mut self.ctx_mut(),
                     &[(*constant, assigned)],
-                    C::Scalar::zero(),
-                )
-                .map(Value::Assigned)
-                .unwrap(),
-            (Value::Assigned(lhs), Value::Assigned(rhs)) => self
-                .scalar_chip()
-                .sum_products_with_coeff_and_const(
+                    C::Scalar::ZERO,
+                ))
+            }
+            (Value::Assigned(lhs), Value::Assigned(rhs)) => {
+                Value::Assigned(self.scalar_chip().sum_products_with_coeff_and_const(
                     &mut self.ctx_mut(),
-                    &[(C::Scalar::one(), lhs, rhs)],
-                    C::Scalar::zero(),
-                )
-                .map(Value::Assigned)
-                .unwrap(),
-        };
-        self.scalar(output)
-    }
-
-    fn neg(self: &Rc<Self>, scalar: &Scalar<'a, C, EccChip>) -> Scalar<'a, C, EccChip> {
-        let output = match scalar.value().deref() {
-            Value::Constant(constant) => Value::Constant(constant.neg()),
-            Value::Assigned(assigned) => {
-                IntegerInstructions::neg(self.scalar_chip().deref(), &mut self.ctx_mut(), assigned)
-                    .map(Value::Assigned)
-                    .unwrap()
+                    &[(C::Scalar::ONE, lhs, rhs)],
+                    C::Scalar::ZERO,
+                ))
             }
         };
         self.scalar(output)
     }
 
-    fn invert(self: &Rc<Self>, scalar: &Scalar<'a, C, EccChip>) -> Scalar<'a, C, EccChip> {
+    fn neg(self: &Rc<Self>, scalar: &Scalar<C, EccChip>) -> Scalar<C, EccChip> {
         let output = match scalar.value().deref() {
-            Value::Constant(constant) => Value::Constant(Field::invert(constant).unwrap()),
-            Value::Assigned(assigned) => Value::Assigned(
-                IntegerInstructions::invert(
-                    self.scalar_chip().deref(),
-                    &mut self.ctx_mut(),
-                    assigned,
-                )
-                .unwrap(),
-            ),
+            Value::Constant(constant) => Value::Constant(constant.neg()),
+            Value::Assigned(assigned) => Value::Assigned(IntegerInstructions::neg(
+                self.scalar_chip().deref(),
+                &mut self.ctx_mut(),
+                assigned,
+            )),
         };
         self.scalar(output)
     }
-}
 
-#[cfg(test)]
-impl<'a, C: CurveAffine, EccChip: EccInstructions<'a, C>> Halo2Loader<'a, C, EccChip> {
-    fn start_row_metering(self: &Rc<Self>, identifier: &str) {
-        use crate::loader::halo2::shim::Context;
-
-        self.row_meterings.borrow_mut().push((identifier.to_string(), self.ctx().offset()))
-    }
-
-    fn end_row_metering(self: &Rc<Self>) {
-        use crate::loader::halo2::shim::Context;
-
-        let mut row_meterings = self.row_meterings.borrow_mut();
-        let (_, row) = row_meterings.last_mut().unwrap();
-        *row = self.ctx().offset() - *row;
-    }
-
-    pub fn print_row_metering(self: &Rc<Self>) {
-        for (identifier, cost) in self.row_meterings.borrow().iter() {
-            println!("{identifier}: {cost}");
-        }
+    fn invert(self: &Rc<Self>, scalar: &Scalar<C, EccChip>) -> Scalar<C, EccChip> {
+        let output = match scalar.value().deref() {
+            Value::Constant(constant) => Value::Constant(Field::invert(constant).unwrap()),
+            Value::Assigned(assigned) => Value::Assigned(IntegerInstructions::invert(
+                self.scalar_chip().deref(),
+                &mut self.ctx_mut(),
+                assigned,
+            )),
+        };
+        self.scalar(output)
     }
 }
 
@@ -287,18 +255,21 @@ impl<T, L> Value<T, L> {
     }
 }
 
+/// Field element
 #[derive(Clone)]
-pub struct Scalar<'a, C: CurveAffine, EccChip: EccInstructions<'a, C>> {
-    loader: Rc<Halo2Loader<'a, C, EccChip>>,
+pub struct Scalar<C: CurveAffine, EccChip: EccInstructions<C>> {
+    loader: Rc<Halo2Loader<C, EccChip>>,
     index: usize,
     value: RefCell<Value<C::Scalar, EccChip::AssignedScalar>>,
 }
 
-impl<'a, C: CurveAffine, EccChip: EccInstructions<'a, C>> Scalar<'a, C, EccChip> {
-    pub fn loader(&self) -> &Rc<Halo2Loader<'a, C, EccChip>> {
+impl<C: CurveAffine, EccChip: EccInstructions<C>> Scalar<C, EccChip> {
+    /// Returns reference of [`Rc<Halo2Loader>`]
+    pub fn loader(&self) -> &Rc<Halo2Loader<C, EccChip>> {
         &self.loader
     }
 
+    /// Returns reference of [`EccInstructions::AssignedScalar`].
     pub fn into_assigned(self) -> EccChip::AssignedScalar {
         match self.value.into_inner() {
             Value::Constant(constant) => self.loader.assign_const_scalar(constant),
@@ -306,6 +277,7 @@ impl<'a, C: CurveAffine, EccChip: EccInstructions<'a, C>> Scalar<'a, C, EccChip>
         }
     }
 
+    /// Returns reference of [`EccInstructions::AssignedScalar`].
     pub fn assigned(&self) -> Ref<EccChip::AssignedScalar> {
         if let Some(constant) = self.maybe_const() {
             *self.value.borrow_mut() = Value::Assigned(self.loader.assign_const_scalar(constant))
@@ -322,35 +294,41 @@ impl<'a, C: CurveAffine, EccChip: EccInstructions<'a, C>> Scalar<'a, C, EccChip>
     }
 }
 
-impl<'a, C: CurveAffine, EccChip: EccInstructions<'a, C>> PartialEq for Scalar<'a, C, EccChip> {
+impl<C: CurveAffine, EccChip: EccInstructions<C>> PartialEq for Scalar<C, EccChip> {
     fn eq(&self, other: &Self) -> bool {
         self.index == other.index
     }
 }
 
-impl<'a, C: CurveAffine, EccChip: EccInstructions<'a, C>> LoadedScalar<C::Scalar>
-    for Scalar<'a, C, EccChip>
-{
-    type Loader = Rc<Halo2Loader<'a, C, EccChip>>;
+impl<C: CurveAffine, EccChip: EccInstructions<C>> LoadedScalar<C::Scalar> for Scalar<C, EccChip> {
+    type Loader = Rc<Halo2Loader<C, EccChip>>;
 
     fn loader(&self) -> &Self::Loader {
         &self.loader
     }
+
+    fn pow_var(&self, exp: &Self, max_bits: usize) -> Self {
+        let loader = self.loader();
+        let base = self.clone().into_assigned();
+        let exp = exp.clone().into_assigned();
+        let res = loader.scalar_chip().pow_var(&mut loader.ctx_mut(), &base, &exp, max_bits);
+        loader.scalar_from_assigned(res)
+    }
 }
 
-impl<'a, C: CurveAffine, EccChip: EccInstructions<'a, C>> Debug for Scalar<'a, C, EccChip> {
+impl<C: CurveAffine, EccChip: EccInstructions<C>> Debug for Scalar<C, EccChip> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Scalar").field("value", &self.value).finish()
     }
 }
 
-impl<'a, C: CurveAffine, EccChip: EccInstructions<'a, C>> FieldOps for Scalar<'a, C, EccChip> {
+impl<C: CurveAffine, EccChip: EccInstructions<C>> FieldOps for Scalar<C, EccChip> {
     fn invert(&self) -> Option<Self> {
         Some(self.loader.invert(self))
     }
 }
 
-impl<'a, C: CurveAffine, EccChip: EccInstructions<'a, C>> Add for Scalar<'a, C, EccChip> {
+impl<C: CurveAffine, EccChip: EccInstructions<C>> Add for Scalar<C, EccChip> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
@@ -358,7 +336,7 @@ impl<'a, C: CurveAffine, EccChip: EccInstructions<'a, C>> Add for Scalar<'a, C, 
     }
 }
 
-impl<'a, C: CurveAffine, EccChip: EccInstructions<'a, C>> Sub for Scalar<'a, C, EccChip> {
+impl<C: CurveAffine, EccChip: EccInstructions<C>> Sub for Scalar<C, EccChip> {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
@@ -366,7 +344,7 @@ impl<'a, C: CurveAffine, EccChip: EccInstructions<'a, C>> Sub for Scalar<'a, C, 
     }
 }
 
-impl<'a, C: CurveAffine, EccChip: EccInstructions<'a, C>> Mul for Scalar<'a, C, EccChip> {
+impl<C: CurveAffine, EccChip: EccInstructions<C>> Mul for Scalar<C, EccChip> {
     type Output = Self;
 
     fn mul(self, rhs: Self) -> Self::Output {
@@ -374,7 +352,7 @@ impl<'a, C: CurveAffine, EccChip: EccInstructions<'a, C>> Mul for Scalar<'a, C, 
     }
 }
 
-impl<'a, C: CurveAffine, EccChip: EccInstructions<'a, C>> Neg for Scalar<'a, C, EccChip> {
+impl<C: CurveAffine, EccChip: EccInstructions<C>> Neg for Scalar<C, EccChip> {
     type Output = Self;
 
     fn neg(self) -> Self::Output {
@@ -382,9 +360,7 @@ impl<'a, C: CurveAffine, EccChip: EccInstructions<'a, C>> Neg for Scalar<'a, C, 
     }
 }
 
-impl<'a, 'b, C: CurveAffine, EccChip: EccInstructions<'a, C>> Add<&'b Self>
-    for Scalar<'a, C, EccChip>
-{
+impl<'b, C: CurveAffine, EccChip: EccInstructions<C>> Add<&'b Self> for Scalar<C, EccChip> {
     type Output = Self;
 
     fn add(self, rhs: &'b Self) -> Self::Output {
@@ -392,9 +368,7 @@ impl<'a, 'b, C: CurveAffine, EccChip: EccInstructions<'a, C>> Add<&'b Self>
     }
 }
 
-impl<'a, 'b, C: CurveAffine, EccChip: EccInstructions<'a, C>> Sub<&'b Self>
-    for Scalar<'a, C, EccChip>
-{
+impl<'b, C: CurveAffine, EccChip: EccInstructions<C>> Sub<&'b Self> for Scalar<C, EccChip> {
     type Output = Self;
 
     fn sub(self, rhs: &'b Self) -> Self::Output {
@@ -402,9 +376,7 @@ impl<'a, 'b, C: CurveAffine, EccChip: EccInstructions<'a, C>> Sub<&'b Self>
     }
 }
 
-impl<'a, 'b, C: CurveAffine, EccChip: EccInstructions<'a, C>> Mul<&'b Self>
-    for Scalar<'a, C, EccChip>
-{
+impl<'b, C: CurveAffine, EccChip: EccInstructions<C>> Mul<&'b Self> for Scalar<C, EccChip> {
     type Output = Self;
 
     fn mul(self, rhs: &'b Self) -> Self::Output {
@@ -412,56 +384,52 @@ impl<'a, 'b, C: CurveAffine, EccChip: EccInstructions<'a, C>> Mul<&'b Self>
     }
 }
 
-impl<'a, C: CurveAffine, EccChip: EccInstructions<'a, C>> AddAssign for Scalar<'a, C, EccChip> {
+impl<C: CurveAffine, EccChip: EccInstructions<C>> AddAssign for Scalar<C, EccChip> {
     fn add_assign(&mut self, rhs: Self) {
         *self = Halo2Loader::add(&self.loader, self, &rhs)
     }
 }
 
-impl<'a, C: CurveAffine, EccChip: EccInstructions<'a, C>> SubAssign for Scalar<'a, C, EccChip> {
+impl<C: CurveAffine, EccChip: EccInstructions<C>> SubAssign for Scalar<C, EccChip> {
     fn sub_assign(&mut self, rhs: Self) {
         *self = Halo2Loader::sub(&self.loader, self, &rhs)
     }
 }
 
-impl<'a, C: CurveAffine, EccChip: EccInstructions<'a, C>> MulAssign for Scalar<'a, C, EccChip> {
+impl<C: CurveAffine, EccChip: EccInstructions<C>> MulAssign for Scalar<C, EccChip> {
     fn mul_assign(&mut self, rhs: Self) {
         *self = Halo2Loader::mul(&self.loader, self, &rhs)
     }
 }
 
-impl<'a, 'b, C: CurveAffine, EccChip: EccInstructions<'a, C>> AddAssign<&'b Self>
-    for Scalar<'a, C, EccChip>
-{
+impl<'b, C: CurveAffine, EccChip: EccInstructions<C>> AddAssign<&'b Self> for Scalar<C, EccChip> {
     fn add_assign(&mut self, rhs: &'b Self) {
         *self = Halo2Loader::add(&self.loader, self, rhs)
     }
 }
 
-impl<'a, 'b, C: CurveAffine, EccChip: EccInstructions<'a, C>> SubAssign<&'b Self>
-    for Scalar<'a, C, EccChip>
-{
+impl<'b, C: CurveAffine, EccChip: EccInstructions<C>> SubAssign<&'b Self> for Scalar<C, EccChip> {
     fn sub_assign(&mut self, rhs: &'b Self) {
         *self = Halo2Loader::sub(&self.loader, self, rhs)
     }
 }
 
-impl<'a, 'b, C: CurveAffine, EccChip: EccInstructions<'a, C>> MulAssign<&'b Self>
-    for Scalar<'a, C, EccChip>
-{
+impl<'b, C: CurveAffine, EccChip: EccInstructions<C>> MulAssign<&'b Self> for Scalar<C, EccChip> {
     fn mul_assign(&mut self, rhs: &'b Self) {
         *self = Halo2Loader::mul(&self.loader, self, rhs)
     }
 }
 
+/// Elliptic curve point
 #[derive(Clone)]
-pub struct EcPoint<'a, C: CurveAffine, EccChip: EccInstructions<'a, C>> {
-    loader: Rc<Halo2Loader<'a, C, EccChip>>,
+pub struct EcPoint<C: CurveAffine, EccChip: EccInstructions<C>> {
+    loader: Rc<Halo2Loader<C, EccChip>>,
     index: usize,
     value: RefCell<Value<C, EccChip::AssignedEcPoint>>,
 }
 
-impl<'a, C: CurveAffine, EccChip: EccInstructions<'a, C>> EcPoint<'a, C, EccChip> {
+impl<C: CurveAffine, EccChip: EccInstructions<C>> EcPoint<C, EccChip> {
+    /// Into [`EccInstructions::AssignedEcPoint`].
     pub fn into_assigned(self) -> EccChip::AssignedEcPoint {
         match self.value.into_inner() {
             Value::Constant(constant) => self.loader.assign_const_ec_point(constant),
@@ -469,6 +437,7 @@ impl<'a, C: CurveAffine, EccChip: EccInstructions<'a, C>> EcPoint<'a, C, EccChip
         }
     }
 
+    /// Returns reference of [`EccInstructions::AssignedEcPoint`].
     pub fn assigned(&self) -> Ref<EccChip::AssignedEcPoint> {
         if let Some(constant) = self.maybe_const() {
             *self.value.borrow_mut() = Value::Assigned(self.loader.assign_const_ec_point(constant))
@@ -485,110 +454,97 @@ impl<'a, C: CurveAffine, EccChip: EccInstructions<'a, C>> EcPoint<'a, C, EccChip
     }
 }
 
-impl<'a, C: CurveAffine, EccChip: EccInstructions<'a, C>> PartialEq for EcPoint<'a, C, EccChip> {
+impl<C: CurveAffine, EccChip: EccInstructions<C>> PartialEq for EcPoint<C, EccChip> {
     fn eq(&self, other: &Self) -> bool {
         self.index == other.index
     }
 }
 
-impl<'a, C: CurveAffine, EccChip: EccInstructions<'a, C>> LoadedEcPoint<C>
-    for EcPoint<'a, C, EccChip>
-{
-    type Loader = Rc<Halo2Loader<'a, C, EccChip>>;
+impl<C: CurveAffine, EccChip: EccInstructions<C>> LoadedEcPoint<C> for EcPoint<C, EccChip> {
+    type Loader = Rc<Halo2Loader<C, EccChip>>;
 
     fn loader(&self) -> &Self::Loader {
         &self.loader
     }
 }
 
-impl<'a, C: CurveAffine, EccChip: EccInstructions<'a, C>> Debug for EcPoint<'a, C, EccChip> {
+impl<C: CurveAffine, EccChip: EccInstructions<C>> Debug for EcPoint<C, EccChip> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("EcPoint").field("index", &self.index).field("value", &self.value).finish()
     }
 }
 
-impl<'a, C: CurveAffine, EccChip: EccInstructions<'a, C>> ScalarLoader<C::Scalar>
-    for Rc<Halo2Loader<'a, C, EccChip>>
+impl<C: CurveAffine, EccChip: EccInstructions<C>> ScalarLoader<C::Scalar>
+    for Rc<Halo2Loader<C, EccChip>>
 {
-    type LoadedScalar = Scalar<'a, C, EccChip>;
+    type LoadedScalar = Scalar<C, EccChip>;
 
-    fn load_const(&self, value: &C::Scalar) -> Scalar<'a, C, EccChip> {
+    fn load_const(&self, value: &C::Scalar) -> Scalar<C, EccChip> {
         self.scalar(Value::Constant(*value))
     }
 
-    fn assert_eq(
-        &self,
-        annotation: &str,
-        lhs: &Scalar<'a, C, EccChip>,
-        rhs: &Scalar<'a, C, EccChip>,
-    ) -> Result<(), crate::Error> {
-        self.scalar_chip()
-            .assert_equal(&mut self.ctx_mut(), &lhs.assigned(), &rhs.assigned())
-            .map_err(|_| crate::Error::AssertionFailure(annotation.to_string()))
+    fn assert_eq(&self, _annotation: &str, lhs: &Scalar<C, EccChip>, rhs: &Scalar<C, EccChip>) {
+        self.scalar_chip().assert_equal(&mut self.ctx_mut(), &lhs.assigned(), &rhs.assigned());
     }
 
     fn sum_with_coeff_and_const(
         &self,
-        values: &[(C::Scalar, &Scalar<'a, C, EccChip>)],
+        values: &[(C::Scalar, &Scalar<C, EccChip>)],
         constant: C::Scalar,
-    ) -> Scalar<'a, C, EccChip> {
+    ) -> Scalar<C, EccChip> {
         let values = values.iter().map(|(coeff, value)| (*coeff, value.assigned())).collect_vec();
-        self.scalar(Value::Assigned(
-            self.scalar_chip()
-                .sum_with_coeff_and_const(&mut self.ctx_mut(), &values, constant)
-                .unwrap(),
-        ))
+        self.scalar(Value::Assigned(self.scalar_chip().sum_with_coeff_and_const(
+            &mut self.ctx_mut(),
+            &values,
+            constant,
+        )))
     }
 
     fn sum_products_with_coeff_and_const(
         &self,
-        values: &[(C::Scalar, &Scalar<'a, C, EccChip>, &Scalar<'a, C, EccChip>)],
+        values: &[(C::Scalar, &Scalar<C, EccChip>, &Scalar<C, EccChip>)],
         constant: C::Scalar,
-    ) -> Scalar<'a, C, EccChip> {
+    ) -> Scalar<C, EccChip> {
         let values = values
             .iter()
             .map(|(coeff, lhs, rhs)| (*coeff, lhs.assigned(), rhs.assigned()))
             .collect_vec();
-        self.scalar(Value::Assigned(
-            self.scalar_chip()
-                .sum_products_with_coeff_and_const(&mut self.ctx_mut(), &values, constant)
-                .unwrap(),
-        ))
+        self.scalar(Value::Assigned(self.scalar_chip().sum_products_with_coeff_and_const(
+            &mut self.ctx_mut(),
+            &values,
+            constant,
+        )))
     }
 }
 
-impl<'a, C: CurveAffine, EccChip: EccInstructions<'a, C>> EcPointLoader<C>
-    for Rc<Halo2Loader<'a, C, EccChip>>
-{
-    type LoadedEcPoint = EcPoint<'a, C, EccChip>;
+impl<C: CurveAffine, EccChip: EccInstructions<C>> EcPointLoader<C> for Rc<Halo2Loader<C, EccChip>> {
+    type LoadedEcPoint = EcPoint<C, EccChip>;
 
-    fn ec_point_load_const(&self, ec_point: &C) -> EcPoint<'a, C, EccChip> {
+    fn ec_point_load_const(&self, ec_point: &C) -> EcPoint<C, EccChip> {
         self.ec_point(Value::Constant(*ec_point))
     }
 
     fn ec_point_assert_eq(
         &self,
-        annotation: &str,
-        lhs: &EcPoint<'a, C, EccChip>,
-        rhs: &EcPoint<'a, C, EccChip>,
-    ) -> Result<(), crate::Error> {
+        _annotation: &str,
+        lhs: &EcPoint<C, EccChip>,
+        rhs: &EcPoint<C, EccChip>,
+    ) {
         if let (Value::Constant(lhs), Value::Constant(rhs)) =
             (lhs.value().deref(), rhs.value().deref())
         {
             assert_eq!(lhs, rhs);
-            Ok(())
         } else {
             let lhs = lhs.assigned();
             let rhs = rhs.assigned();
-            self.ecc_chip()
-                .assert_equal(&mut self.ctx_mut(), lhs.deref(), rhs.deref())
-                .map_err(|_| crate::Error::AssertionFailure(annotation.to_string()))
+            self.ecc_chip().assert_equal(&mut self.ctx_mut(), lhs.deref(), rhs.deref());
         }
     }
 
     fn multi_scalar_multiplication(
-        pairs: &[(&<Self as ScalarLoader<C::Scalar>>::LoadedScalar, &EcPoint<'a, C, EccChip>)],
-    ) -> EcPoint<'a, C, EccChip> {
+        pairs: &[(&<Self as ScalarLoader<C::Scalar>>::LoadedScalar, &EcPoint<C, EccChip>)],
+    ) -> EcPoint<C, EccChip> {
+        assert!(!pairs.is_empty(), "multi_scalar_multiplication: pairs is empty");
         let loader = &pairs[0].0.loader;
 
         let (constant, fixed_base, variable_base_non_scaled, variable_base_scaled) =
@@ -609,7 +565,7 @@ impl<'a, C: CurveAffine, EccChip: EccInstructions<'a, C>> EcPointLoader<C>
                             fixed_base.push((scalar, *base))
                         }
                         (Value::Constant(scalar), Value::Assigned(_))
-                            if scalar.eq(&C::Scalar::one()) =>
+                            if scalar.eq(&C::Scalar::ONE) =>
                         {
                             variable_base_non_scaled.push(base);
                         }
@@ -625,11 +581,7 @@ impl<'a, C: CurveAffine, EccChip: EccInstructions<'a, C>> EcPointLoader<C>
                     .into_iter()
                     .map(|(scalar, base)| (scalar.assigned(), base))
                     .collect_vec();
-                loader
-                    .ecc_chip
-                    .borrow_mut()
-                    .fixed_base_msm(&mut loader.ctx_mut(), &fixed_base)
-                    .unwrap()
+                loader.ecc_chip.borrow_mut().fixed_base_msm(&mut loader.ctx_mut(), &fixed_base)
             })
             .map(RefCell::new);
         let variable_base_msm = (!variable_base_scaled.is_empty())
@@ -642,37 +594,21 @@ impl<'a, C: CurveAffine, EccChip: EccInstructions<'a, C>> EcPointLoader<C>
                     .ecc_chip
                     .borrow_mut()
                     .variable_base_msm(&mut loader.ctx_mut(), &variable_base_scaled)
-                    .unwrap()
             })
             .map(RefCell::new);
-        let output = loader
-            .ecc_chip()
-            .sum_with_const(
-                &mut loader.ctx_mut(),
-                &variable_base_non_scaled
-                    .into_iter()
-                    .map(EcPoint::assigned)
-                    .chain(fixed_base_msm.as_ref().map(RefCell::borrow))
-                    .chain(variable_base_msm.as_ref().map(RefCell::borrow))
-                    .collect_vec(),
-                constant,
-            )
-            .unwrap();
+        let output = loader.ecc_chip().sum_with_const(
+            &mut loader.ctx_mut(),
+            &variable_base_non_scaled
+                .into_iter()
+                .map(EcPoint::assigned)
+                .chain(fixed_base_msm.as_ref().map(RefCell::borrow))
+                .chain(variable_base_msm.as_ref().map(RefCell::borrow))
+                .collect_vec(),
+            constant,
+        );
 
         loader.ec_point_from_assigned(output)
     }
 }
 
-impl<'a, C: CurveAffine, EccChip: EccInstructions<'a, C>> Loader<C>
-    for Rc<Halo2Loader<'a, C, EccChip>>
-{
-    #[cfg(test)]
-    fn start_cost_metering(&self, identifier: &str) {
-        self.start_row_metering(identifier)
-    }
-
-    #[cfg(test)]
-    fn end_cost_metering(&self) {
-        self.end_row_metering()
-    }
-}
+impl<C: CurveAffine, EccChip: EccInstructions<C>> Loader<C> for Rc<Halo2Loader<C, EccChip>> {}

@@ -1,10 +1,12 @@
-use super::{read_instances, write_instances, CircuitExt, Snark, SnarkWitness};
+use super::{read_instances, write_instances, CircuitExt, PlonkSuccinctVerifier, Snark};
 #[cfg(feature = "display")]
 use ark_std::{end_timer, start_timer};
-use halo2_base::halo2_proofs;
+use halo2_base::halo2_proofs::{
+    self, poly::kzg::strategy::SingleStrategy, transcript::TranscriptReadBuffer,
+};
+pub use halo2_base::poseidon::hasher::spec::OptimizedPoseidonSpec;
 use halo2_proofs::{
     circuit::Layouter,
-    dev::MockProver,
     halo2curves::{
         bn256::{Bn256, Fr, G1Affine},
         group::ff::Field,
@@ -14,7 +16,7 @@ use halo2_proofs::{
         VerifyingKey,
     },
     poly::{
-        commitment::{Params, ParamsProver, Prover, Verifier},
+        commitment::{ParamsProver, Prover, Verifier},
         kzg::{
             commitment::{KZGCommitmentScheme, ParamsKZG},
             msm::DualMSM,
@@ -30,25 +32,27 @@ use rand::Rng;
 use snark_verifier::{
     cost::CostEstimation,
     loader::native::NativeLoader,
-    pcs::{self, MultiOpenScheme},
+    pcs::{
+        kzg::{KzgAccumulator, KzgAsVerifyingKey, KzgSuccinctVerifyingKey},
+        AccumulationScheme, PolynomialCommitmentScheme, Query,
+    },
     system::halo2::{compile, Config},
+    util::arithmetic::Rotation,
     util::transcript::TranscriptWrite,
-    verifier::PlonkProof,
-    PoseidonSpec,
+    verifier::plonk::PlonkProof,
 };
-use std::{
-    fs::{self, File},
-    marker::PhantomData,
-    path::Path,
-};
+use std::{fs, marker::PhantomData, path::Path};
 
 pub mod aggregation;
 
 // Poseidon parameters
-const T: usize = 5;
-const RATE: usize = 4;
-const R_F: usize = 8;
-const R_P: usize = 60;
+// We use the same ones Scroll uses for security: https://github.com/scroll-tech/poseidon-circuit/blob/714f50c7572a4ff6f2b1fa51a9604a99cd7b6c71/src/poseidon/primitives/bn256/fp.rs
+// Verify generated constants: https://github.com/scroll-tech/poseidon-circuit/blob/714f50c7572a4ff6f2b1fa51a9604a99cd7b6c71/src/poseidon/primitives/bn256/mod.rs#L65
+const T: usize = 3;
+const RATE: usize = 2;
+const R_F: usize = 8; // https://github.com/scroll-tech/poseidon-circuit/blob/714f50c7572a4ff6f2b1fa51a9604a99cd7b6c71/src/poseidon/primitives/p128pow5t3.rs#L26
+const R_P: usize = 57; // https://github.com/scroll-tech/poseidon-circuit/blob/714f50c7572a4ff6f2b1fa51a9604a99cd7b6c71/src/poseidon/primitives/bn256/mod.rs#L8
+const SECURE_MDS: usize = 0;
 
 pub type PoseidonTranscript<L, S> =
     snark_verifier::system::halo2::transcript::halo2::PoseidonTranscript<
@@ -62,7 +66,8 @@ pub type PoseidonTranscript<L, S> =
     >;
 
 lazy_static! {
-    pub static ref POSEIDON_SPEC: PoseidonSpec<Fr, T, RATE> = PoseidonSpec::new(R_F, R_P);
+    pub static ref POSEIDON_SPEC: OptimizedPoseidonSpec<Fr, T, RATE> =
+        OptimizedPoseidonSpec::new::<R_F, R_P, SECURE_MDS>();
 }
 
 /// Generates a native proof using either SHPLONK or GWC proving method. Uses Poseidon for Fiat-Shamir.
@@ -87,11 +92,6 @@ where
         MSMAccumulator = DualMSM<'params, Bn256>,
     >,
 {
-    #[cfg(debug_assertions)]
-    {
-        MockProver::run(params.k(), &circuit, instances.clone()).unwrap().assert_satisfied();
-    }
-
     if let Some((instance_path, proof_path)) = path {
         let cached_instances = read_instances(instance_path);
         if matches!(cached_instances, Ok(tmp) if tmp == instances) && proof_path.exists() {
@@ -120,24 +120,31 @@ where
     #[cfg(feature = "display")]
     end_timer!(proof_time);
 
+    // validate proof before caching
+    assert!(
+        {
+            let mut transcript_read = PoseidonTranscript::<NativeLoader, &[u8]>::from_spec(
+                &proof[..],
+                POSEIDON_SPEC.clone(),
+            );
+            VerificationStrategy::<_, V>::finalize(
+                verify_proof::<_, V, _, _, _>(
+                    params.verifier_params(),
+                    pk.get_vk(),
+                    AccumulatorStrategy::new(params.verifier_params()),
+                    &[instances.as_slice()],
+                    &mut transcript_read,
+                )
+                .unwrap(),
+            )
+        },
+        "SNARK proof failed to verify"
+    );
+
     if let Some((instance_path, proof_path)) = path {
         write_instances(&instances, instance_path);
         fs::write(proof_path, &proof).unwrap();
     }
-
-    debug_assert!({
-        let mut transcript_read = PoseidonTranscript::<NativeLoader, &[u8]>::new(proof.as_slice());
-        VerificationStrategy::<_, V>::finalize(
-            verify_proof::<_, V, _, _, _>(
-                params.verifier_params(),
-                pk.get_vk(),
-                AccumulatorStrategy::new(params.verifier_params()),
-                &[instances.as_slice()],
-                &mut transcript_read,
-            )
-            .unwrap(),
-        )
-    });
 
     proof
 }
@@ -150,6 +157,7 @@ pub fn gen_proof_gwc<C: Circuit<Fr>>(
     pk: &ProvingKey<G1Affine>,
     circuit: C,
     instances: Vec<Vec<Fr>>,
+
     rng: &mut (impl Rng + Send),
     path: Option<(&Path, &Path)>,
 ) -> Vec<u8> {
@@ -164,6 +172,7 @@ pub fn gen_proof_shplonk<C: Circuit<Fr>>(
     pk: &ProvingKey<G1Affine>,
     circuit: C,
     instances: Vec<Vec<Fr>>,
+
     rng: &mut (impl Rng + Send),
     path: Option<(&Path, &Path)>,
 ) -> Vec<u8> {
@@ -191,6 +200,7 @@ where
         MSMAccumulator = DualMSM<'params, Bn256>,
     >,
 {
+    #[cfg(feature = "halo2-axiom")]
     if let Some(path) = &path {
         if let Ok(snark) = read_snark(path) {
             return snark;
@@ -205,10 +215,21 @@ where
     );
 
     let instances = circuit.instances();
-    let proof =
-        gen_proof::<ConcreteCircuit, P, V>(params, pk, circuit, instances.clone(), rng, None);
+    #[cfg(feature = "halo2-axiom")]
+    let proof = gen_proof::<ConcreteCircuit, P, V>(params, pk, circuit, instances.clone(), None);
+    // If we can't serialize the entire snark, at least serialize the proof
+    #[cfg(not(feature = "halo2-axiom"))]
+    let proof = {
+        let path = path.map(|path| {
+            let path = path.as_ref().to_str().unwrap();
+            (format!("{path}.instances"), format!("{path}.proof"))
+        });
+        let paths = path.as_ref().map(|path| (Path::new(&path.0), Path::new(&path.1)));
+        gen_proof::<ConcreteCircuit, P, V>(params, pk, circuit, instances.clone(), rng, paths)
+    };
 
     let snark = Snark::new(protocol, instances, proof);
+    #[cfg(feature = "halo2-axiom")]
     if let Some(path) = &path {
         let f = File::create(path).unwrap();
         #[cfg(feature = "display")]
@@ -217,6 +238,7 @@ where
         #[cfg(feature = "display")]
         end_timer!(write_time);
     }
+    #[allow(clippy::let_and_return)]
     snark
 }
 
@@ -250,29 +272,86 @@ pub fn gen_snark_shplonk<ConcreteCircuit: CircuitExt<Fr>>(
     )
 }
 
+/// Verifies a native proof using either SHPLONK or GWC proving method. Uses Poseidon for Fiat-Shamir.
+///
+pub fn verify_snark<'params, ConcreteCircuit, V>(
+    verifier_params: &'params ParamsKZG<Bn256>,
+    snark: Snark,
+    vk: &VerifyingKey<G1Affine>,
+) -> bool
+where
+    ConcreteCircuit: CircuitExt<Fr>,
+    V: Verifier<
+        'params,
+        KZGCommitmentScheme<Bn256>,
+        Guard = GuardKZG<'params, Bn256>,
+        MSMAccumulator = DualMSM<'params, Bn256>,
+    >,
+{
+    let mut transcript: PoseidonTranscript<_, _> =
+        TranscriptReadBuffer::<_, G1Affine, _>::init(snark.proof.as_slice());
+    let strategy = SingleStrategy::new(verifier_params);
+    let instance_slice = snark.instances.iter().map(|x| &x[..]).collect::<Vec<_>>();
+    match verify_proof::<_, V, _, _, _>(
+        verifier_params,
+        vk,
+        strategy,
+        &[instance_slice.as_slice()],
+        &mut transcript,
+    ) {
+        Ok(_p) => true,
+        Err(_e) => false,
+    }
+}
+
+/// Verifies a native proof using SHPLONK proving method. Uses Poseidon for Fiat-Shamir.
+///
+pub fn verify_snark_shplonk<ConcreteCircuit>(
+    verifier_params: &ParamsKZG<Bn256>,
+    snark: Snark,
+    vk: &VerifyingKey<G1Affine>,
+) -> bool
+where
+    ConcreteCircuit: CircuitExt<Fr>,
+{
+    verify_snark::<ConcreteCircuit, VerifierSHPLONK<_>>(verifier_params, snark, vk)
+}
+
 /// Tries to deserialize a SNARK from the specified `path` using `bincode`.
 ///
 /// WARNING: The user must keep track of whether the SNARK was generated using the GWC or SHPLONK multi-open scheme.
+#[cfg(feature = "halo2-axiom")]
 pub fn read_snark(path: impl AsRef<Path>) -> Result<Snark, bincode::Error> {
     let f = File::open(path).map_err(Box::<bincode::ErrorKind>::from)?;
     bincode::deserialize_from(f)
 }
 
-pub fn gen_dummy_snark<ConcreteCircuit, MOS>(
+// copied from snark_verifier --example recursion
+pub fn gen_dummy_snark<ConcreteCircuit, AS>(
     params: &ParamsKZG<Bn256>,
     vk: Option<&VerifyingKey<G1Affine>>,
     num_instance: Vec<usize>,
 ) -> Snark
 where
     ConcreteCircuit: CircuitExt<Fr>,
-    MOS: MultiOpenScheme<G1Affine, NativeLoader>
-        + CostEstimation<G1Affine, Input = Vec<pcs::Query<Fr>>>,
+    AS: PolynomialCommitmentScheme<
+            G1Affine,
+            NativeLoader,
+            VerifyingKey = KzgSuccinctVerifyingKey<G1Affine>,
+            Output = KzgAccumulator<G1Affine, NativeLoader>,
+        > + AccumulationScheme<
+            G1Affine,
+            NativeLoader,
+            Accumulator = KzgAccumulator<G1Affine, NativeLoader>,
+            VerifyingKey = KzgAsVerifyingKey,
+        > + CostEstimation<G1Affine, Input = Vec<Query<Rotation>>>,
 {
     struct CsProxy<F, C>(PhantomData<(F, C)>);
 
     impl<F: Field, C: CircuitExt<F>> Circuit<F> for CsProxy<F, C> {
         type Config = C::Config;
         type FloorPlanner = C::FloorPlanner;
+        type Params = ();
 
         fn without_witnesses(&self) -> Self {
             CsProxy(PhantomData)
@@ -314,7 +393,7 @@ where
     );
     let instances = num_instance.into_iter().map(|n| vec![Fr::default(); n]).collect();
     let proof = {
-        let mut transcript = PoseidonTranscript::<NativeLoader, _>::new(Vec::new());
+        let mut transcript = PoseidonTranscript::<NativeLoader, _>::new::<SECURE_MDS>(Vec::new());
         for _ in 0..protocol
             .num_witness
             .iter()
@@ -326,8 +405,8 @@ where
         for _ in 0..protocol.evaluations.len() {
             transcript.write_scalar(Fr::default()).unwrap();
         }
-        let queries = PlonkProof::<G1Affine, NativeLoader, MOS>::empty_queries(&protocol);
-        for _ in 0..MOS::estimate_cost(&queries).num_commitment {
+        let queries = PlonkProof::<G1Affine, NativeLoader, AS>::empty_queries(&protocol);
+        for _ in 0..AS::estimate_cost(&queries).num_commitment {
             transcript.write_ec_point(G1Affine::default()).unwrap();
         }
         transcript.finalize()

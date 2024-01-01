@@ -1,8 +1,8 @@
 use crate::{
     loader::{
         evm::{
-            code::{Precompiled, YulCode},
-            fe_to_u256, modulus, u256_to_fe,
+            code::{Precompiled, SolidityAssemblyCode},
+            fe_to_u256, modulus, u256_to_fe, U256, U512,
         },
         EcPointLoader, LoadedEcPoint, LoadedScalar, Loader, ScalarLoader,
     },
@@ -10,9 +10,7 @@ use crate::{
         arithmetic::{CurveAffine, FieldOps, PrimeField},
         Itertools,
     },
-    Error,
 };
-use ethereum_types::{U256, U512};
 use hex;
 use std::{
     cell::RefCell,
@@ -40,7 +38,7 @@ impl<T: Debug> PartialEq for Value<T> {
 
 impl<T: Debug> Value<T> {
     fn identifier(&self) -> String {
-        match &self {
+        match self {
             Value::Constant(_) | Value::Memory(_) => format!("{self:?}"),
             Value::Negated(value) => format!("-({value:?})"),
             Value::Sum(lhs, rhs) => format!("({lhs:?} + {rhs:?})"),
@@ -49,24 +47,22 @@ impl<T: Debug> Value<T> {
     }
 }
 
+/// `Loader` implementation for generating yul code as EVM verifier.
 #[derive(Clone, Debug)]
 pub struct EvmLoader {
     base_modulus: U256,
     scalar_modulus: U256,
-    code: RefCell<YulCode>,
+    code: RefCell<SolidityAssemblyCode>,
     ptr: RefCell<usize>,
     cache: RefCell<HashMap<String, usize>>,
-    #[cfg(test)]
-    gas_metering_ids: RefCell<Vec<String>>,
 }
 
 fn hex_encode_u256(value: &U256) -> String {
-    let mut bytes = [0; 32];
-    value.to_big_endian(&mut bytes);
-    format!("0x{}", hex::encode(bytes))
+    format!("0x{}", hex::encode(value.to_be_bytes::<32>()))
 }
 
 impl EvmLoader {
+    /// Initialize a [`EvmLoader`] with base and scalar field.
     pub fn new<Base, Scalar>() -> Rc<Self>
     where
         Base: PrimeField<Repr = [u8; 0x20]>,
@@ -74,7 +70,7 @@ impl EvmLoader {
     {
         let base_modulus = modulus::<Base>();
         let scalar_modulus = modulus::<Scalar>();
-        let code = YulCode::new();
+        let code = SolidityAssemblyCode::new();
 
         Rc::new(Self {
             base_modulus,
@@ -82,23 +78,26 @@ impl EvmLoader {
             code: RefCell::new(code),
             ptr: Default::default(),
             cache: Default::default(),
-            #[cfg(test)]
-            gas_metering_ids: RefCell::new(Vec::new()),
         })
     }
 
-    pub fn yul_code(self: &Rc<Self>) -> String {
+    /// Returns generated Solidity code. This is "Solidity" code that is wrapped in an assembly block.
+    /// In other words, it's basically just assembly (equivalently, Yul).
+    pub fn solidity_code(self: &Rc<Self>) -> String {
         let code = "
-            if not(success) { revert(0, 0) }
+            // Revert if anything fails
+            if iszero(success) { revert(0, 0) }
+
+            // Return empty bytes on success
             return(0, 0)"
             .to_string();
         self.code.borrow_mut().runtime_append(code);
-        self.code.borrow().code(
-            hex_encode_u256(&self.base_modulus),
-            hex_encode_u256(&self.scalar_modulus),
-        )
+        self.code
+            .borrow()
+            .code(hex_encode_u256(&self.base_modulus), hex_encode_u256(&self.scalar_modulus))
     }
 
+    /// Allocates memory chunk with given `size` and returns pointer.
     pub fn allocate(self: &Rc<Self>, size: usize) -> usize {
         let ptr = *self.ptr.borrow();
         *self.ptr.borrow_mut() += size;
@@ -109,7 +108,7 @@ impl EvmLoader {
         *self.ptr.borrow()
     }
 
-    pub(crate) fn code_mut(&self) -> impl DerefMut<Target = YulCode> + '_ {
+    pub(crate) fn code_mut(&self) -> impl DerefMut<Target = SolidityAssemblyCode> + '_ {
         self.code.borrow_mut()
     }
 
@@ -138,6 +137,7 @@ impl EvmLoader {
         }
     }
 
+    /// Calldata load a field element.
     pub fn calldataload_scalar(self: &Rc<Self>, offset: usize) -> Scalar {
         let ptr = self.allocate(0x20);
         let code = format!("mstore({ptr:#x}, mod(calldataload({offset:#x}), f_q))");
@@ -145,6 +145,8 @@ impl EvmLoader {
         self.scalar(Value::Memory(ptr))
     }
 
+    /// Calldata load an elliptic curve point and validate it's on affine plane.
+    /// Note that identity will cause the verification to fail.
     pub fn calldataload_ec_point(self: &Rc<Self>, offset: usize) -> EcPoint {
         let x_ptr = self.allocate(0x40);
         let y_ptr = x_ptr + 0x20;
@@ -165,6 +167,7 @@ impl EvmLoader {
         self.ec_point(Value::Memory(x_ptr))
     }
 
+    /// Decode an elliptic curve point from limbs.
     pub fn ec_point_from_limbs<const LIMBS: usize, const BITS: usize>(
         self: &Rc<Self>,
         x_limbs: [&Scalar; LIMBS],
@@ -210,10 +213,7 @@ impl EvmLoader {
     }
 
     pub(crate) fn scalar(self: &Rc<Self>, value: Value<U256>) -> Scalar {
-        let value = if matches!(
-            value,
-            Value::Constant(_) | Value::Memory(_) | Value::Negated(_)
-        ) {
+        let value = if matches!(value, Value::Constant(_) | Value::Memory(_) | Value::Negated(_)) {
             value
         } else {
             let identifier = value.identifier();
@@ -221,32 +221,23 @@ impl EvmLoader {
             let ptr = if let Some(ptr) = some_ptr {
                 ptr
             } else {
-                let v = self.push(&Scalar {
-                    loader: self.clone(),
-                    value,
-                });
+                let v = self.push(&Scalar { loader: self.clone(), value });
                 let ptr = self.allocate(0x20);
-                self.code
-                    .borrow_mut()
-                    .runtime_append(format!("mstore({ptr:#x}, {v})"));
+                self.code.borrow_mut().runtime_append(format!("mstore({ptr:#x}, {v})"));
                 self.cache.borrow_mut().insert(identifier, ptr);
                 ptr
             };
             Value::Memory(ptr)
         };
-        Scalar {
-            loader: self.clone(),
-            value,
-        }
+        Scalar { loader: self.clone(), value }
     }
 
     fn ec_point(self: &Rc<Self>, value: Value<(U256, U256)>) -> EcPoint {
-        EcPoint {
-            loader: self.clone(),
-            value,
-        }
+        EcPoint { loader: self.clone(), value }
     }
 
+    /// Performs `KECCAK256` on `memory[ptr..ptr+len]` and returns pointer of
+    /// hash.
     pub fn keccak256(self: &Rc<Self>, ptr: usize, len: usize) -> usize {
         let hash_ptr = self.allocate(0x20);
         let code = format!("mstore({hash_ptr:#x}, keccak256({ptr:#x}, {len}))");
@@ -254,19 +245,20 @@ impl EvmLoader {
         hash_ptr
     }
 
+    /// Copies a field element into given `ptr`.
     pub fn copy_scalar(self: &Rc<Self>, scalar: &Scalar, ptr: usize) {
         let scalar = self.push(scalar);
-        self.code
-            .borrow_mut()
-            .runtime_append(format!("mstore({ptr:#x}, {scalar})"));
+        self.code.borrow_mut().runtime_append(format!("mstore({ptr:#x}, {scalar})"));
     }
 
+    /// Allocates a new field element and copies the given value into it.
     pub fn dup_scalar(self: &Rc<Self>, scalar: &Scalar) -> Scalar {
         let ptr = self.allocate(0x20);
         self.copy_scalar(scalar, ptr);
         self.scalar(Value::Memory(ptr))
     }
 
+    /// Allocates a new elliptic curve point and copies the given value into it.
     pub fn dup_ec_point(self: &Rc<Self>, value: &EcPoint) -> EcPoint {
         let ptr = self.allocate(0x40);
         match value.value {
@@ -314,11 +306,11 @@ impl EvmLoader {
     fn invert(self: &Rc<Self>, scalar: &Scalar) -> Scalar {
         let rd_ptr = self.allocate(0x20);
         let [cd_ptr, ..] = [
-            &self.scalar(Value::Constant(0x20.into())),
-            &self.scalar(Value::Constant(0x20.into())),
-            &self.scalar(Value::Constant(0x20.into())),
+            &self.scalar(Value::Constant(U256::from(0x20))),
+            &self.scalar(Value::Constant(U256::from(0x20))),
+            &self.scalar(Value::Constant(U256::from(0x20))),
             scalar,
-            &self.scalar(Value::Constant(self.scalar_modulus - 2)),
+            &self.scalar(Value::Constant(self.scalar_modulus - U256::from(2))),
             &self.scalar(Value::Constant(self.scalar_modulus)),
         ]
         .map(|value| self.dup_scalar(value).ptr());
@@ -340,6 +332,7 @@ impl EvmLoader {
         self.ec_point(Value::Memory(rd_ptr))
     }
 
+    /// Performs pairing.
     pub fn pairing(
         self: &Rc<Self>,
         lhs: &EcPoint,
@@ -388,14 +381,11 @@ impl EvmLoader {
 
     fn add(self: &Rc<Self>, lhs: &Scalar, rhs: &Scalar) -> Scalar {
         if let (Value::Constant(lhs), Value::Constant(rhs)) = (&lhs.value, &rhs.value) {
-            let out = (U512::from(lhs) + U512::from(rhs)) % U512::from(self.scalar_modulus);
-            return self.scalar(Value::Constant(out.try_into().unwrap()));
+            let out = (U512::from(*lhs) + U512::from(*rhs)) % U512::from(self.scalar_modulus);
+            return self.scalar(Value::Constant(U256::from(out)));
         }
 
-        self.scalar(Value::Sum(
-            Box::new(lhs.value.clone()),
-            Box::new(rhs.value.clone()),
-        ))
+        self.scalar(Value::Sum(Box::new(lhs.value.clone()), Box::new(rhs.value.clone())))
     }
 
     fn sub(self: &Rc<Self>, lhs: &Scalar, rhs: &Scalar) -> Scalar {
@@ -411,14 +401,11 @@ impl EvmLoader {
 
     fn mul(self: &Rc<Self>, lhs: &Scalar, rhs: &Scalar) -> Scalar {
         if let (Value::Constant(lhs), Value::Constant(rhs)) = (&lhs.value, &rhs.value) {
-            let out = (U512::from(lhs) * U512::from(rhs)) % U512::from(self.scalar_modulus);
-            return self.scalar(Value::Constant(out.try_into().unwrap()));
+            let out = (U512::from(*lhs) * U512::from(*rhs)) % U512::from(self.scalar_modulus);
+            return self.scalar(Value::Constant(U256::from(out)));
         }
 
-        self.scalar(Value::Product(
-            Box::new(lhs.value.clone()),
-            Box::new(rhs.value.clone()),
-        ))
+        self.scalar(Value::Product(Box::new(lhs.value.clone()), Box::new(rhs.value.clone())))
     }
 
     fn neg(self: &Rc<Self>, scalar: &Scalar) -> Scalar {
@@ -432,29 +419,20 @@ impl EvmLoader {
 
 #[cfg(test)]
 impl EvmLoader {
-    fn start_gas_metering(self: &Rc<Self>, identifier: &str) {
-        self.gas_metering_ids
-            .borrow_mut()
-            .push(identifier.to_string());
-        let code = format!("let {identifier} := gas()");
-        self.code.borrow_mut().runtime_append(code);
+    fn start_gas_metering(self: &Rc<Self>, _: &str) {
+        //  unimplemented
     }
 
     fn end_gas_metering(self: &Rc<Self>) {
-        let code = format!(
-            "log1(0, 0, sub({}, gas()))",
-            self.gas_metering_ids.borrow().last().unwrap()
-        );
-        self.code.borrow_mut().runtime_append(code);
+        //  unimplemented
     }
 
-    pub fn print_gas_metering(self: &Rc<Self>, costs: Vec<u64>) {
-        for (identifier, cost) in self.gas_metering_ids.borrow().iter().zip(costs) {
-            println!("{}: {}", identifier, cost);
-        }
+    pub fn print_gas_metering(self: &Rc<Self>, _: Vec<u64>) {
+        //  unimplemented
     }
 }
 
+/// Elliptic curve point.
 #[derive(Clone)]
 pub struct EcPoint {
     loader: Rc<EvmLoader>,
@@ -480,9 +458,7 @@ impl EcPoint {
 
 impl Debug for EcPoint {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("EcPoint")
-            .field("value", &self.value)
-            .finish()
+        f.debug_struct("EcPoint").field("value", &self.value).finish()
     }
 }
 
@@ -504,6 +480,7 @@ where
     }
 }
 
+/// Field element.
 #[derive(Clone)]
 pub struct Scalar {
     loader: Rc<EvmLoader>,
@@ -526,21 +503,14 @@ impl Scalar {
     pub(crate) fn ptr(&self) -> usize {
         match self.value {
             Value::Memory(ptr) => ptr,
-            _ => *self
-                .loader
-                .cache
-                .borrow()
-                .get(&self.value.identifier())
-                .unwrap(),
+            _ => *self.loader.cache.borrow().get(&self.value.identifier()).unwrap(),
         }
     }
 }
 
 impl Debug for Scalar {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Scalar")
-            .field("value", &self.value)
-            .finish()
+        f.debug_struct("Scalar").field("value", &self.value).finish()
     }
 }
 
@@ -654,6 +624,10 @@ impl<F: PrimeField<Repr = [u8; 0x20]>> LoadedScalar<F> for Scalar {
     fn loader(&self) -> &Self::Loader {
         &self.loader
     }
+
+    fn pow_var(&self, _exp: &Self, _exp_max_bits: usize) -> Self {
+        todo!()
+    }
 }
 
 impl<C> EcPointLoader<C> for Rc<EvmLoader>
@@ -666,11 +640,11 @@ where
     fn ec_point_load_const(&self, value: &C) -> EcPoint {
         let coordinates = value.coordinates().unwrap();
         let [x, y] = [coordinates.x(), coordinates.y()]
-            .map(|coordinate| U256::from_little_endian(coordinate.to_repr().as_ref()));
+            .map(|coordinate| U256::try_from_le_slice(coordinate.to_repr().as_ref()).unwrap());
         self.ec_point(Value::Constant((x, y)))
     }
 
-    fn ec_point_assert_eq(&self, _: &str, _: &EcPoint, _: &EcPoint) -> Result<(), Error> {
+    fn ec_point_assert_eq(&self, _: &str, _: &EcPoint, _: &EcPoint) {
         unimplemented!()
     }
 
@@ -681,11 +655,11 @@ where
             .iter()
             .cloned()
             .map(|(scalar, ec_point)| match scalar.value {
-                Value::Constant(constant) if U256::one() == constant => ec_point.clone(),
+                Value::Constant(constant) if U256::from(1) == constant => ec_point.clone(),
                 _ => ec_point.loader.ec_point_scalar_mul(ec_point, scalar),
             })
             .reduce(|acc, ec_point| acc.loader.ec_point_add(&acc, &ec_point))
-            .unwrap()
+            .expect("pairs should not be empty")
     }
 }
 
@@ -696,7 +670,7 @@ impl<F: PrimeField<Repr = [u8; 0x20]>> ScalarLoader<F> for Rc<EvmLoader> {
         self.scalar(Value::Constant(fe_to_u256(*value)))
     }
 
-    fn assert_eq(&self, _: &str, _: &Scalar, _: &Scalar) -> Result<(), Error> {
+    fn assert_eq(&self, _: &str, _: &Scalar, _: &Scalar) {
         unimplemented!()
     }
 
@@ -706,12 +680,12 @@ impl<F: PrimeField<Repr = [u8; 0x20]>> ScalarLoader<F> for Rc<EvmLoader> {
         }
 
         let push_addend = |(coeff, value): &(F, &Scalar)| {
-            assert_ne!(*coeff, F::zero());
-            match (*coeff == F::one(), &value.value) {
+            assert_ne!(*coeff, F::ZERO);
+            match (*coeff == F::ONE, &value.value) {
                 (true, _) => self.push(value),
-                (false, Value::Constant(value)) => self.push(&self.scalar(Value::Constant(
-                    fe_to_u256(*coeff * u256_to_fe::<F>(*value)),
-                ))),
+                (false, Value::Constant(value)) => self.push(
+                    &self.scalar(Value::Constant(fe_to_u256(*coeff * u256_to_fe::<F>(*value)))),
+                ),
                 (false, _) => {
                     let value = self.push(value);
                     let coeff = self.push(&self.scalar(Value::Constant(fe_to_u256(*coeff))));
@@ -721,7 +695,7 @@ impl<F: PrimeField<Repr = [u8; 0x20]>> ScalarLoader<F> for Rc<EvmLoader> {
         };
 
         let mut values = values.iter();
-        let initial_value = if constant == F::zero() {
+        let initial_value = if constant == F::ZERO {
             push_addend(values.next().unwrap())
         } else {
             self.push(&self.scalar(Value::Constant(fe_to_u256(constant))))
@@ -755,8 +729,8 @@ impl<F: PrimeField<Repr = [u8; 0x20]>> ScalarLoader<F> for Rc<EvmLoader> {
         }
 
         let push_addend = |(coeff, lhs, rhs): &(F, &Scalar, &Scalar)| {
-            assert_ne!(*coeff, F::zero());
-            match (*coeff == F::one(), &lhs.value, &rhs.value) {
+            assert_ne!(*coeff, F::ZERO);
+            match (*coeff == F::ONE, &lhs.value, &rhs.value) {
                 (_, Value::Constant(lhs), Value::Constant(rhs)) => {
                     self.push(&self.scalar(Value::Constant(fe_to_u256(
                         *coeff * u256_to_fe::<F>(*lhs) * u256_to_fe::<F>(*rhs),
@@ -765,9 +739,10 @@ impl<F: PrimeField<Repr = [u8; 0x20]>> ScalarLoader<F> for Rc<EvmLoader> {
                 (_, value @ Value::Memory(_), Value::Constant(constant))
                 | (_, Value::Constant(constant), value @ Value::Memory(_)) => {
                     let v1 = self.push(&self.scalar(value.clone()));
-                    let v2 = self.push(&self.scalar(Value::Constant(fe_to_u256(
-                        *coeff * u256_to_fe::<F>(*constant),
-                    ))));
+                    let v2 =
+                        self.push(&self.scalar(Value::Constant(fe_to_u256(
+                            *coeff * u256_to_fe::<F>(*constant),
+                        ))));
                     format!("mulmod({v1}, {v2}, f_q)")
                 }
                 (true, _, _) => {
@@ -785,7 +760,7 @@ impl<F: PrimeField<Repr = [u8; 0x20]>> ScalarLoader<F> for Rc<EvmLoader> {
         };
 
         let mut values = values.iter();
-        let initial_value = if constant == F::zero() {
+        let initial_value = if constant == F::ZERO {
             push_addend(values.next().unwrap())
         } else {
             self.push(&self.scalar(Value::Constant(fe_to_u256(constant))))
@@ -858,14 +833,9 @@ impl<F: PrimeField<Repr = [u8; 0x20]>> ScalarLoader<F> for Rc<EvmLoader> {
             let v
         "
         );
-        for (value, product) in values.iter().rev().zip(
-            products
-                .iter()
-                .rev()
-                .skip(1)
-                .map(Some)
-                .chain(iter::once(None)),
-        ) {
+        for (value, product) in
+            values.iter().rev().zip(products.iter().rev().skip(1).map(Some).chain(iter::once(None)))
+        {
             if let Some(product) = product {
                 let val_ptr = value.ptr();
                 let prod_ptr = product.ptr();

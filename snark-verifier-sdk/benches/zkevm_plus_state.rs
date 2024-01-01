@@ -16,7 +16,7 @@ use snark_verifier_sdk::{
         aggregation::load_verify_circuit_degree, aggregation::AggregationCircuit, gen_proof_gwc,
         gen_proof_shplonk, gen_snark_gwc, gen_snark_shplonk, PoseidonTranscript, POSEIDON_SPEC,
     },
-    CircuitExt,
+    CircuitExt, SHPLONK,
 };
 use std::env::{set_var, var};
 use std::path::Path;
@@ -76,57 +76,93 @@ fn bench(c: &mut Criterion) {
     let params_app = gen_srs(k);
     let evm_snark = {
         let pk = gen_pk(&params_app, &evm_circuit, Some(Path::new("data/zkevm_evm.pkey")));
-        gen_snark_gwc(
-            &params_app,
-            &pk,
-            evm_circuit,
-            &mut transcript,
-            &mut rng,
-            Some(Path::new("data/zkevm_evm.snark")),
-        )
+        gen_snark_shplonk(&params_app, &pk, evm_circuit, None::<&str>)
     };
     let state_snark = {
         let pk = gen_pk(&params_app, &state_circuit, Some(Path::new("data/zkevm_state.pkey")));
-        gen_snark_shplonk(
-            &params_app,
-            &pk,
-            state_circuit,
-            &mut transcript,
-            &mut rng,
-            Some(Path::new("data/zkevm_state.snark")),
-        )
+        gen_snark_shplonk(&params_app, &pk, state_circuit, None::<&str>)
     };
     let snarks = [evm_snark, state_snark];
     // === finished zkevm evm circuit ===
 
     // === now to do aggregation ===
-    set_var("VERIFY_CONFIG", "./configs/bench_zkevm_plus_state.config");
-    let k = load_verify_circuit_degree();
+    let path = "./configs/bench_zkevm_plus_state.json";
+    // everything below exact same as in zkevm bench
+    let agg_config = AggregationConfigParams::from_path(path);
+    let k = agg_config.degree;
+    let lookup_bits = k as usize - 1;
     let params = gen_srs(k);
 
-    let start1 = start_timer!(|| "Create aggregation circuit");
-    let agg_circuit = AggregationCircuit::new(&params, snarks, &mut transcript, &mut rng);
-    end_timer!(start1);
+    let agg_circuit = AggregationCircuit::keygen::<SHPLONK>(&params, snarks.clone());
 
+    let start1 = start_timer!(|| "gen vk & pk");
     let pk = gen_pk(&params, &agg_circuit, None);
+    end_timer!(start1);
+    let break_points = agg_circuit.break_points();
 
+    #[cfg(feature = "loader_evm")]
+    {
+        let start2 = start_timer!(|| "Create EVM SHPLONK proof");
+        let agg_circuit = AggregationCircuit::new::<SHPLONK>(
+            CircuitBuilderStage::Prover,
+            Some(break_points.clone()),
+            lookup_bits,
+            &params,
+            snarks.clone(),
+        );
+        let instances = agg_circuit.instances();
+        let num_instances = agg_circuit.num_instance();
+
+        let proof = gen_evm_proof_shplonk(&params, &pk, agg_circuit, instances.clone());
+        end_timer!(start2);
+
+        let deployment_code = gen_evm_verifier_shplonk::<AggregationCircuit>(
+            &params,
+            pk.get_vk(),
+            num_instances.clone(),
+            None,
+        );
+
+        evm_verify(deployment_code, instances.clone(), proof);
+
+        let start2 = start_timer!(|| "Create EVM GWC proof");
+        let agg_circuit = AggregationCircuit::new::<SHPLONK>(
+            CircuitBuilderStage::Prover,
+            Some(break_points.clone()),
+            lookup_bits,
+            &params,
+            snarks.clone(),
+        );
+        let proof = gen_evm_proof_gwc(&params, &pk, agg_circuit, instances.clone());
+        end_timer!(start2);
+
+        let deployment_code = gen_evm_verifier_gwc::<AggregationCircuit>(
+            &params,
+            pk.get_vk(),
+            num_instances.clone(),
+            None,
+        );
+
+        evm_verify(deployment_code, instances, proof);
+    }
+
+    // run benches
     let mut group = c.benchmark_group("shplonk-proof");
     group.sample_size(10);
     group.bench_with_input(
-        BenchmarkId::new("zkevm-evm-state-agg", k),
-        &(&params, &pk, &agg_circuit),
-        |b, &(params, pk, agg_circuit)| {
+        BenchmarkId::new("zkevm-evm-agg", k),
+        &(&params, &pk, &break_points, &snarks),
+        |b, &(params, pk, break_points, snarks)| {
             b.iter(|| {
-                let instances = agg_circuit.instances();
-                gen_proof_shplonk(
+                let agg_circuit = AggregationCircuit::new::<SHPLONK>(
+                    CircuitBuilderStage::Prover,
+                    Some(break_points.clone()),
+                    lookup_bits,
                     params,
-                    pk,
-                    agg_circuit.clone(),
-                    instances,
-                    &mut transcript,
-                    &mut rng,
-                    None,
+                    snarks.clone(),
                 );
+                let instances = agg_circuit.instances();
+                gen_proof_shplonk(params, pk, agg_circuit, instances, None)
             })
         },
     );
@@ -135,52 +171,24 @@ fn bench(c: &mut Criterion) {
     let mut group = c.benchmark_group("gwc-proof");
     group.sample_size(10);
     group.bench_with_input(
-        BenchmarkId::new("zkevm-evm-state-agg", k),
-        &(&params, &pk, &agg_circuit),
-        |b, &(params, pk, agg_circuit)| {
+        BenchmarkId::new("zkevm-evm-agg", k),
+        &(&params, &pk, &break_points, &snarks),
+        |b, &(params, pk, break_points, snarks)| {
             b.iter(|| {
-                let instances = agg_circuit.instances();
-                gen_proof_gwc(
+                // note that the generic here remains SHPLONK because it reflects the multi-open scheme for the previous snark (= the zkevm snark)
+                let agg_circuit = AggregationCircuit::new::<SHPLONK>(
+                    CircuitBuilderStage::Prover,
+                    Some(break_points.clone()),
+                    lookup_bits,
                     params,
-                    pk,
-                    agg_circuit.clone(),
-                    instances,
-                    &mut transcript,
-                    &mut rng,
-                    None,
+                    snarks.clone(),
                 );
+                let instances = agg_circuit.instances();
+                gen_proof_gwc(params, pk, agg_circuit, instances, None)
             })
         },
     );
     group.finish();
-
-    #[cfg(feature = "loader_evm")]
-    {
-        let deployment_code =
-            gen_evm_verifier_shplonk::<AggregationCircuit>(&params, pk.get_vk(), &(), None::<&str>);
-
-        let start2 = start_timer!(|| "Create EVM SHPLONK proof");
-        let proof = gen_evm_proof_shplonk(
-            &params,
-            &pk,
-            agg_circuit.clone(),
-            agg_circuit.instances(),
-            &mut rng,
-        );
-        end_timer!(start2);
-
-        evm_verify(deployment_code, agg_circuit.instances(), proof);
-
-        let deployment_code =
-            gen_evm_verifier_shplonk::<AggregationCircuit>(&params, pk.get_vk(), &(), None::<&str>);
-
-        let start2 = start_timer!(|| "Create EVM GWC proof");
-        let proof =
-            gen_evm_proof_gwc(&params, &pk, agg_circuit.clone(), agg_circuit.instances(), &mut rng);
-        end_timer!(start2);
-
-        evm_verify(deployment_code, agg_circuit.instances(), proof);
-    }
 }
 
 criterion_group!(benches, bench);

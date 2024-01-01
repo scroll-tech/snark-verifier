@@ -1,27 +1,150 @@
 use crate::{
-    loader::{LoadedScalar, Loader},
+    loader::{native::NativeLoader, LoadedScalar, Loader},
     util::{
-        arithmetic::{CurveAffine, Domain, Field, Fraction, Rotation},
+        arithmetic::{CurveAffine, Domain, Field, Fraction, PrimeField, Rotation},
         Itertools,
     },
-    Protocol,
 };
 use num_integer::Integer;
 use num_traits::One;
 use serde::{Deserialize, Serialize};
 use std::{
-    cmp::max,
+    cmp::{max, Ordering},
     collections::{BTreeMap, BTreeSet},
     fmt::Debug,
     iter::{self, Sum},
     ops::{Add, Mul, Neg, Sub},
 };
 
-impl<C> Protocol<C>
+/// Domain parameters to be optionally loaded as witnesses
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct DomainAsWitness<C, L>
+where
+    C: CurveAffine,
+    L: Loader<C>,
+{
+    /// 2<sup>k</sup> is the number of rows in the domain
+    pub k: L::LoadedScalar,
+    /// n = 2<sup>k</sup> is the number of rows in the domain
+    pub n: L::LoadedScalar,
+    /// Generator of the domain
+    pub gen: L::LoadedScalar,
+    /// Inverse generator of the domain
+    pub gen_inv: L::LoadedScalar,
+}
+
+impl<C, L> DomainAsWitness<C, L>
+where
+    C: CurveAffine,
+    L: Loader<C>,
+{
+    /// Rotate `F::one()` to given `rotation`.
+    pub fn rotate_one(&self, rotation: Rotation) -> L::LoadedScalar {
+        let loader = self.gen.loader();
+        match rotation.0.cmp(&0) {
+            Ordering::Equal => loader.load_one(),
+            Ordering::Greater => self.gen.pow_const(rotation.0 as u64),
+            Ordering::Less => self.gen_inv.pow_const(-rotation.0 as u64),
+        }
+    }
+}
+
+/// Protocol specifying configuration of a PLONK.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct PlonkProtocol<C, L = NativeLoader>
+where
+    C: CurveAffine,
+    L: Loader<C>,
+{
+    #[serde(bound(
+        serialize = "C::Scalar: Serialize",
+        deserialize = "C::Scalar: Deserialize<'de>"
+    ))]
+    /// Working domain.
+    pub domain: Domain<C::Scalar>,
+
+    #[serde(bound(
+        serialize = "L::LoadedScalar: Serialize",
+        deserialize = "L::LoadedScalar: Deserialize<'de>"
+    ))]
+    /// Optional: load `domain.n` and `domain.gen` as a witness
+    pub domain_as_witness: Option<DomainAsWitness<C, L>>,
+
+    #[serde(bound(
+        serialize = "L::LoadedEcPoint: Serialize",
+        deserialize = "L::LoadedEcPoint: Deserialize<'de>"
+    ))]
+    /// Commitments of preprocessed polynomials.
+    pub preprocessed: Vec<L::LoadedEcPoint>,
+    /// Number of instances in each instance polynomial.
+    pub num_instance: Vec<usize>,
+    /// Number of witness polynomials in each phase.
+    pub num_witness: Vec<usize>,
+    /// Number of challenges to squeeze from transcript after each phase.
+    pub num_challenge: Vec<usize>,
+    /// Evaluations to read from transcript.
+    pub evaluations: Vec<Query>,
+    /// [`crate::pcs::PolynomialCommitmentScheme`] queries to verify.
+    pub queries: Vec<Query>,
+    /// Structure of quotient polynomial.
+    pub quotient: QuotientPolynomial<C::Scalar>,
+    #[serde(bound(
+        serialize = "L::LoadedScalar: Serialize",
+        deserialize = "L::LoadedScalar: Deserialize<'de>"
+    ))]
+    /// Prover and verifier common initial state to write to transcript if any.
+    pub transcript_initial_state: Option<L::LoadedScalar>,
+    /// Instance polynomials commiting key if any.
+    pub instance_committing_key: Option<InstanceCommittingKey<C>>,
+    /// Linearization strategy.
+    pub linearization: Option<LinearizationStrategy>,
+    /// Indices (instance polynomial index, row) of encoded
+    /// [`crate::pcs::AccumulationScheme::Accumulator`]s.
+    pub accumulator_indices: Vec<Vec<(usize, usize)>>,
+}
+
+impl<C, L> PlonkProtocol<C, L>
+where
+    C: CurveAffine,
+    L: Loader<C>,
+{
+    pub(super) fn langranges(&self) -> impl IntoIterator<Item = i32> {
+        let instance_eval_lagrange = self.instance_committing_key.is_none().then(|| {
+            let queries = {
+                let offset = self.preprocessed.len();
+                let range = offset..offset + self.num_instance.len();
+                self.quotient
+                    .numerator
+                    .used_query()
+                    .into_iter()
+                    .filter(move |query| range.contains(&query.poly))
+            };
+            let (min_rotation, max_rotation) = queries.fold((0, 0), |(min, max), query| {
+                if query.rotation.0 < min {
+                    (query.rotation.0, max)
+                } else if query.rotation.0 > max {
+                    (min, query.rotation.0)
+                } else {
+                    (min, max)
+                }
+            });
+            let max_instance_len = self.num_instance.iter().max().copied().unwrap_or_default();
+            -max_rotation..max_instance_len as i32 + min_rotation.abs()
+        });
+        self.quotient
+            .numerator
+            .used_langrange()
+            .into_iter()
+            .chain(instance_eval_lagrange.into_iter().flatten())
+    }
+}
+impl<C> PlonkProtocol<C>
 where
     C: CurveAffine,
 {
-    pub fn loaded<L: Loader<C>>(&self, loader: &L) -> Protocol<C, L> {
+    /// Loaded `PlonkProtocol` with `preprocessed` and
+    /// `transcript_initial_state` loaded as constant.
+    pub fn loaded<L: Loader<C>>(&self, loader: &L) -> PlonkProtocol<C, L> {
         let preprocessed = self
             .preprocessed
             .iter()
@@ -31,8 +154,9 @@ where
             .transcript_initial_state
             .as_ref()
             .map(|transcript_initial_state| loader.load_const(transcript_initial_state));
-        Protocol {
+        PlonkProtocol {
             domain: self.domain.clone(),
+            domain_as_witness: None,
             preprocessed,
             num_instance: self.num_instance.clone(),
             num_witness: self.num_witness.clone(),
@@ -44,6 +168,76 @@ where
             instance_committing_key: self.instance_committing_key.clone(),
             linearization: self.linearization,
             accumulator_indices: self.accumulator_indices.clone(),
+        }
+    }
+}
+
+#[cfg(feature = "loader_halo2")]
+mod halo2 {
+    use crate::{
+        loader::{
+            halo2::{EccInstructions, Halo2Loader},
+            LoadedScalar, ScalarLoader,
+        },
+        util::arithmetic::CurveAffine,
+        verifier::plonk::PlonkProtocol,
+    };
+    use halo2_base::utils::bit_length;
+    use std::rc::Rc;
+
+    use super::{DomainAsWitness, PrimeField};
+
+    impl<C> PlonkProtocol<C>
+    where
+        C: CurveAffine,
+    {
+        /// Loaded `PlonkProtocol` with `preprocessed` and
+        /// `transcript_initial_state` loaded as witness, which is useful when
+        /// doing recursion.
+        pub fn loaded_preprocessed_as_witness<EccChip: EccInstructions<C>>(
+            &self,
+            loader: &Rc<Halo2Loader<C, EccChip>>,
+            load_k_as_witness: bool,
+        ) -> PlonkProtocol<C, Rc<Halo2Loader<C, EccChip>>> {
+            let domain_as_witness = load_k_as_witness.then(|| {
+                let k = loader.assign_scalar(C::Scalar::from(self.domain.k as u64));
+                // n = 2^k
+                let two = loader.load_const(&C::Scalar::from(2));
+                let n = two.pow_var(&k, bit_length(C::Scalar::S as u64) + 1);
+                // gen = omega = ROOT_OF_UNITY ^ {2^{S - k}}, where ROOT_OF_UNITY is primitive 2^S root of unity
+                // this makes omega a 2^k root of unity
+                let root_of_unity = loader.load_const(&C::Scalar::ROOT_OF_UNITY);
+                let s = loader.load_const(&C::Scalar::from(C::Scalar::S as u64));
+                let exp = two.pow_var(&(s - &k), bit_length(C::Scalar::S as u64)); // if S - k < 0, constraint on max bits will fail
+                let gen = root_of_unity.pow_var(&exp, C::Scalar::S as usize); // 2^{S - k} < 2^S for k > 0
+                let gen_inv = gen.invert().expect("subgroup generation is invertible");
+                DomainAsWitness { k, n, gen, gen_inv }
+            });
+
+            let preprocessed = self
+                .preprocessed
+                .iter()
+                .map(|preprocessed| loader.assign_ec_point(*preprocessed))
+                .collect();
+            let transcript_initial_state = self
+                .transcript_initial_state
+                .as_ref()
+                .map(|transcript_initial_state| loader.assign_scalar(*transcript_initial_state));
+            PlonkProtocol {
+                domain: self.domain.clone(),
+                domain_as_witness,
+                preprocessed,
+                num_instance: self.num_instance.clone(),
+                num_witness: self.num_witness.clone(),
+                num_challenge: self.num_challenge.clone(),
+                evaluations: self.evaluations.clone(),
+                queries: self.queries.clone(),
+                quotient: self.quotient.clone(),
+                transcript_initial_state,
+                instance_committing_key: self.instance_committing_key.clone(),
+                linearization: self.linearization,
+                accumulator_indices: self.accumulator_indices.clone(),
+            }
         }
     }
 }
@@ -72,26 +266,39 @@ where
     C: CurveAffine,
     L: Loader<C>,
 {
+    // if `n_as_witness` is Some, then we assume `n_as_witness` has value equal to `domain.n` (i.e., number of rows in the circuit)
+    // and is loaded as a witness instead of a constant.
+    // The generator of `domain` also depends on `n`.
     pub fn new(
         domain: &Domain<C::Scalar>,
-        langranges: impl IntoIterator<Item = i32>,
+        lagranges: impl IntoIterator<Item = i32>,
         z: &L::LoadedScalar,
+        domain_as_witness: &Option<DomainAsWitness<C, L>>,
     ) -> Self {
         let loader = z.loader();
 
-        let zn = z.pow_const(domain.n as u64);
-        let langranges = langranges.into_iter().sorted().dedup().collect_vec();
-
+        let lagranges = lagranges.into_iter().sorted().dedup().collect_vec();
         let one = loader.load_one();
+
+        let (zn, n_inv, omegas) = if let Some(domain) = domain_as_witness.as_ref() {
+            let zn = z.pow_var(&domain.n, C::Scalar::S as usize + 1);
+            let n_inv = domain.n.invert().expect("n is not zero");
+            let omegas = lagranges.iter().map(|&i| domain.rotate_one(Rotation(i))).collect_vec();
+            (zn, n_inv, omegas)
+        } else {
+            let zn = z.pow_const(domain.n as u64);
+            let n_inv = loader.load_const(&domain.n_inv);
+            let omegas = lagranges
+                .iter()
+                .map(|&i| loader.load_const(&domain.rotate_scalar(C::Scalar::ONE, Rotation(i))))
+                .collect_vec();
+            (zn, n_inv, omegas)
+        };
+
         let zn_minus_one = zn.clone() - &one;
         let zn_minus_one_inv = Fraction::one_over(zn_minus_one.clone());
 
-        let n_inv = loader.load_const(&domain.n_inv);
         let numer = zn_minus_one.clone() * &n_inv;
-        let omegas = langranges
-            .iter()
-            .map(|&i| loader.load_const(&domain.rotate_scalar(C::Scalar::one(), Rotation(i))))
-            .collect_vec();
         let lagrange_evals = omegas
             .iter()
             .map(|omega| Fraction::new(numer.clone() * omega, z.clone() - omega))
@@ -102,7 +309,7 @@ where
             zn_minus_one,
             zn_minus_one_inv,
             identity: z.clone(),
-            lagrange: langranges.into_iter().zip(lagrange_evals).collect(),
+            lagrange: lagranges.into_iter().zip(lagrange_evals).collect(),
         }
     }
 
@@ -150,11 +357,14 @@ pub struct QuotientPolynomial<F: Clone> {
 
 impl<F: Clone> QuotientPolynomial<F> {
     pub fn num_chunk(&self) -> usize {
-        Integer::div_ceil(&(self.numerator.degree() - 1), &self.chunk_degree)
+        Integer::div_ceil(
+            &(self.numerator.degree().checked_sub(1).unwrap_or_default()),
+            &self.chunk_degree,
+        )
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct Query {
     pub poly: usize,
     pub rotation: Rotation,
@@ -346,7 +556,7 @@ impl<F: Clone + Default> Sum for Expression<F> {
 
 impl<F: Field> One for Expression<F> {
     fn one() -> Self {
-        Expression::Constant(F::one())
+        Expression::Constant(F::ONE)
     }
 }
 

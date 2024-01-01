@@ -1,3 +1,5 @@
+//! Multi-scalar multiplication algorithm.
+
 use crate::{
     loader::{LoadedEcPoint, Loader},
     util::{
@@ -14,6 +16,7 @@ use std::{
 };
 
 #[derive(Clone, Debug)]
+/// Contains unevaluated multi-scalar multiplication.
 pub struct Msm<'a, C: CurveAffine, L: Loader<C>> {
     constant: Option<L::LoadedScalar>,
     scalars: Vec<L::LoadedScalar>,
@@ -26,11 +29,7 @@ where
     L: Loader<C>,
 {
     fn default() -> Self {
-        Self {
-            constant: None,
-            scalars: Vec::new(),
-            bases: Vec::new(),
-        }
+        Self { constant: None, scalars: Vec::new(), bases: Vec::new() }
     }
 }
 
@@ -39,20 +38,15 @@ where
     C: CurveAffine,
     L: Loader<C>,
 {
+    /// Initialize with a constant.
     pub fn constant(constant: L::LoadedScalar) -> Self {
-        Msm {
-            constant: Some(constant),
-            ..Default::default()
-        }
+        Msm { constant: Some(constant), ..Default::default() }
     }
 
+    /// Initialize with a base.
     pub fn base<'b: 'a>(base: &'b L::LoadedEcPoint) -> Self {
         let one = base.loader().load_one();
-        Msm {
-            scalars: vec![one],
-            bases: vec![base],
-            ..Default::default()
-        }
+        Msm { scalars: vec![one], bases: vec![base], ..Default::default() }
     }
 
     pub(crate) fn size(&self) -> usize {
@@ -68,26 +62,21 @@ where
         self.bases.is_empty().then(|| self.constant.unwrap())
     }
 
+    /// Evaluate multi-scalar multiplication.
+    ///
+    /// # Panic
+    ///
+    /// If given `gen` is `None` but there `constant` has some value.
     pub fn evaluate(self, gen: Option<C>) -> L::LoadedEcPoint {
-        let gen = gen.map(|gen| {
-            self.bases
-                .first()
-                .unwrap()
-                .loader()
-                .ec_point_load_const(&gen)
-        });
+        let gen = gen.map(|gen| self.bases.first().unwrap().loader().ec_point_load_const(&gen));
         let pairs = iter::empty()
-            .chain(
-                self.constant
-                    .as_ref()
-                    .map(|constant| (constant, gen.as_ref().unwrap())),
-            )
-            .chain(self.scalars.iter().zip(self.bases.into_iter()))
+            .chain(self.constant.as_ref().map(|constant| (constant, gen.as_ref().unwrap())))
+            .chain(self.scalars.iter().zip(self.bases))
             .collect_vec();
         L::multi_scalar_multiplication(&pairs)
     }
 
-    pub fn scale(&mut self, factor: &L::LoadedScalar) {
+    fn scale(&mut self, factor: &L::LoadedScalar) {
         if let Some(constant) = self.constant.as_mut() {
             *constant *= factor;
         }
@@ -96,7 +85,7 @@ where
         }
     }
 
-    pub fn push<'b: 'a>(&mut self, scalar: L::LoadedScalar, base: &'b L::LoadedEcPoint) {
+    fn push<'b: 'a>(&mut self, scalar: L::LoadedScalar, base: &'b L::LoadedEcPoint) {
         if let Some(pos) = self.bases.iter().position(|exist| exist.eq(&base)) {
             self.scalars[pos] += &scalar;
         } else {
@@ -105,7 +94,7 @@ where
         }
     }
 
-    pub fn extend<'b: 'a>(&mut self, mut other: Msm<'b, C, L>) {
+    fn extend<'b: 'a>(&mut self, mut other: Msm<'b, C, L>) {
         match (self.constant.as_mut(), other.constant.as_ref()) {
             (Some(lhs), Some(rhs)) => *lhs += rhs,
             (None, Some(_)) => self.constant = other.constant.take(),
@@ -293,7 +282,8 @@ fn multi_scalar_multiplication_serial<C: CurveAffine>(
     }
 }
 
-// Copy from https://github.com/zcash/halo2/blob/main/halo2_proofs/src/arithmetic.rs
+/// Multi-scalar multiplication algorithm copied from
+/// <https://github.com/zcash/halo2/blob/main/halo2_proofs/src/arithmetic.rs>.
 pub fn multi_scalar_multiplication<C: CurveAffine>(scalars: &[C::Scalar], bases: &[C]) -> C::Curve {
     assert_eq!(scalars.len(), bases.len());
 
@@ -311,17 +301,12 @@ pub fn multi_scalar_multiplication<C: CurveAffine>(scalars: &[C::Scalar], bases:
         let chunk_size = Integer::div_ceil(&scalars.len(), &num_threads);
         let mut results = vec![C::Curve::identity(); num_threads];
         parallelize_iter(
-            scalars
-                .chunks(chunk_size)
-                .zip(bases.chunks(chunk_size))
-                .zip(results.iter_mut()),
+            scalars.chunks(chunk_size).zip(bases.chunks(chunk_size)).zip(results.iter_mut()),
             |((scalars, bases), result)| {
                 multi_scalar_multiplication_serial(scalars, bases, result);
             },
         );
-        results
-            .iter()
-            .fold(C::Curve::identity(), |acc, result| acc + result)
+        results.iter().fold(C::Curve::identity(), |acc, result| acc + result)
     }
     #[cfg(not(feature = "parallel"))]
     {

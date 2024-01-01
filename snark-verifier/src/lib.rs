@@ -1,6 +1,7 @@
-#![allow(clippy::type_complexity)]
-#![allow(clippy::too_many_arguments)]
-#![allow(clippy::upper_case_acronyms)]
+//! Generic (S)NARK verifier.
+
+#![allow(clippy::type_complexity, clippy::too_many_arguments, clippy::upper_case_acronyms)]
+#![deny(missing_debug_implementations, missing_docs, unsafe_code, rustdoc::all)]
 
 pub mod cost;
 pub mod loader;
@@ -11,54 +12,16 @@ pub mod verifier;
 
 pub(crate) use halo2_base::halo2_proofs;
 pub(crate) use halo2_proofs::halo2curves as halo2_curves;
-#[cfg(feature = "halo2-pse")]
-pub(crate) use poseidon;
-#[cfg(feature = "halo2-axiom")]
-pub(crate) use poseidon_axiom as poseidon;
 
-pub use poseidon::Spec as PoseidonSpec;
-use serde::{Deserialize, Serialize};
-
+/// Error that could happen while verification.
 #[derive(Clone, Debug)]
 pub enum Error {
+    /// Instances that don't match the amount specified in protocol.
     InvalidInstances,
-    InvalidLinearization,
-    InvalidQuery(util::protocol::Query),
-    InvalidChallenge(usize),
+    /// Protocol that is unreasonable for a verifier.
+    InvalidProtocol(String),
+    /// Assertion failure while verification.
     AssertionFailure(String),
+    /// Transcript error.
     Transcript(std::io::ErrorKind, String),
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Protocol<C, L = loader::native::NativeLoader>
-where
-    C: util::arithmetic::CurveAffine,
-    L: loader::Loader<C>,
-{
-    // Common description
-    #[serde(bound(
-        serialize = "C::Scalar: Serialize",
-        deserialize = "C::Scalar: Deserialize<'de>"
-    ))]
-    pub domain: util::arithmetic::Domain<C::Scalar>,
-    #[serde(bound(
-        serialize = "L::LoadedEcPoint: Serialize",
-        deserialize = "L::LoadedEcPoint: Deserialize<'de>"
-    ))]
-    pub preprocessed: Vec<L::LoadedEcPoint>,
-    pub num_instance: Vec<usize>,
-    pub num_witness: Vec<usize>,
-    pub num_challenge: Vec<usize>,
-    pub evaluations: Vec<util::protocol::Query>,
-    pub queries: Vec<util::protocol::Query>,
-    pub quotient: util::protocol::QuotientPolynomial<C::Scalar>,
-    // Minor customization
-    #[serde(bound(
-        serialize = "L::LoadedScalar: Serialize",
-        deserialize = "L::LoadedScalar: Deserialize<'de>"
-    ))]
-    pub transcript_initial_state: Option<L::LoadedScalar>,
-    pub instance_committing_key: Option<util::protocol::InstanceCommittingKey<C>>,
-    pub linearization: Option<util::protocol::LinearizationStrategy>,
-    pub accumulator_indices: Vec<Vec<(usize, usize)>>,
 }

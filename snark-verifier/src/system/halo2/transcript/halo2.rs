@@ -1,4 +1,7 @@
+//! Transcript for verifier in [`halo2_proofs`] circuit.
+
 use crate::halo2_proofs;
+use crate::util::arithmetic::FieldExt;
 use crate::{
     loader::{
         halo2::{EcPoint, EccInstructions, Halo2Loader, Scalar},
@@ -7,23 +10,24 @@ use crate::{
     },
     util::{
         arithmetic::{fe_to_fe, CurveAffine, PrimeField},
-        hash::Poseidon,
+        hash::{OptimizedPoseidonSpec, Poseidon},
         transcript::{Transcript, TranscriptRead, TranscriptWrite},
         Itertools,
     },
     Error,
 };
-use halo2_proofs::{circuit::Value, transcript::EncodedChallenge};
+use halo2_proofs::transcript::EncodedChallenge;
 use std::{
     io::{self, Read, Write},
     rc::Rc,
 };
 
 /// Encoding that encodes elliptic curve point into native field elements.
-pub trait NativeEncoding<'a, C>: EccInstructions<'a, C>
+pub trait NativeEncoding<C>: EccInstructions<C>
 where
     C: CurveAffine,
 {
+    /// Encode.
     fn encode(
         &self,
         ctx: &mut Self::Context,
@@ -31,6 +35,10 @@ where
     ) -> Result<Vec<Self::AssignedScalar>, Error>;
 }
 
+#[derive(Debug)]
+/// Transcript for verifier in [`halo2_proofs`] circuit using poseidon hasher.
+/// Currently It assumes the elliptic curve scalar field is same as native
+/// field.
 pub struct PoseidonTranscript<
     C,
     L,
@@ -48,55 +56,62 @@ pub struct PoseidonTranscript<
     buf: Poseidon<C::Scalar, <L as ScalarLoader<C::Scalar>>::LoadedScalar, T, RATE>,
 }
 
-impl<'a, C, R, EccChip, const T: usize, const RATE: usize, const R_F: usize, const R_P: usize>
-    PoseidonTranscript<C, Rc<Halo2Loader<'a, C, EccChip>>, Value<R>, T, RATE, R_F, R_P>
+impl<C, R, EccChip, const T: usize, const RATE: usize, const R_F: usize, const R_P: usize>
+    PoseidonTranscript<C, Rc<Halo2Loader<C, EccChip>>, R, T, RATE, R_F, R_P>
 where
     C: CurveAffine,
     R: Read,
-    EccChip: NativeEncoding<'a, C>,
+    EccChip: NativeEncoding<C>,
 {
-    pub fn new(loader: &Rc<Halo2Loader<'a, C, EccChip>>, stream: Value<R>) -> Self {
-        let buf = Poseidon::new(loader, R_F, R_P);
+    /// Initialize [`PoseidonTranscript`] given readable or writeable stream for
+    /// verifying or proving with [`NativeLoader`].
+    pub fn new<const SECURE_MDS: usize>(loader: &Rc<Halo2Loader<C, EccChip>>, stream: R) -> Self
+    where
+        C::Scalar: FieldExt,
+    {
+        let buf = Poseidon::new::<R_F, R_P, SECURE_MDS>(loader);
         Self { loader: loader.clone(), stream, buf }
     }
 
+    /// Initialize [`PoseidonTranscript`] from a precomputed spec of round constants and MDS matrix because computing the constants is expensive.
     pub fn from_spec(
-        loader: &Rc<Halo2Loader<'a, C, EccChip>>,
-        stream: Value<R>,
-        spec: crate::poseidon::Spec<C::Scalar, T, RATE>,
+        loader: &Rc<Halo2Loader<C, EccChip>>,
+        stream: R,
+        spec: OptimizedPoseidonSpec<C::Scalar, T, RATE>,
     ) -> Self {
         let buf = Poseidon::from_spec(loader, spec);
         Self { loader: loader.clone(), stream, buf }
     }
 
-    pub fn new_stream(&mut self, stream: Value<R>) {
+    /// Clear the buffer and set the stream to a new one. Effectively the same as starting from a new transcript.
+    pub fn new_stream(&mut self, stream: R) {
         self.buf.clear();
         self.stream = stream;
     }
 }
 
-impl<'a, C, R, EccChip, const T: usize, const RATE: usize, const R_F: usize, const R_P: usize>
-    Transcript<C, Rc<Halo2Loader<'a, C, EccChip>>>
-    for PoseidonTranscript<C, Rc<Halo2Loader<'a, C, EccChip>>, Value<R>, T, RATE, R_F, R_P>
+impl<C, R, EccChip, const T: usize, const RATE: usize, const R_F: usize, const R_P: usize>
+    Transcript<C, Rc<Halo2Loader<C, EccChip>>>
+    for PoseidonTranscript<C, Rc<Halo2Loader<C, EccChip>>, R, T, RATE, R_F, R_P>
 where
     C: CurveAffine,
     R: Read,
-    EccChip: NativeEncoding<'a, C>,
+    EccChip: NativeEncoding<C>,
 {
-    fn loader(&self) -> &Rc<Halo2Loader<'a, C, EccChip>> {
+    fn loader(&self) -> &Rc<Halo2Loader<C, EccChip>> {
         &self.loader
     }
 
-    fn squeeze_challenge(&mut self) -> Scalar<'a, C, EccChip> {
+    fn squeeze_challenge(&mut self) -> Scalar<C, EccChip> {
         self.buf.squeeze()
     }
 
-    fn common_scalar(&mut self, scalar: &Scalar<'a, C, EccChip>) -> Result<(), Error> {
+    fn common_scalar(&mut self, scalar: &Scalar<C, EccChip>) -> Result<(), Error> {
         self.buf.update(&[scalar.clone()]);
         Ok(())
     }
 
-    fn common_ec_point(&mut self, ec_point: &EcPoint<'a, C, EccChip>) -> Result<(), Error> {
+    fn common_ec_point(&mut self, ec_point: &EcPoint<C, EccChip>) -> Result<(), Error> {
         let encoded = self
             .loader
             .ecc_chip()
@@ -118,39 +133,31 @@ where
     }
 }
 
-impl<'a, C, R, EccChip, const T: usize, const RATE: usize, const R_F: usize, const R_P: usize>
-    TranscriptRead<C, Rc<Halo2Loader<'a, C, EccChip>>>
-    for PoseidonTranscript<C, Rc<Halo2Loader<'a, C, EccChip>>, Value<R>, T, RATE, R_F, R_P>
+impl<C, R, EccChip, const T: usize, const RATE: usize, const R_F: usize, const R_P: usize>
+    TranscriptRead<C, Rc<Halo2Loader<C, EccChip>>>
+    for PoseidonTranscript<C, Rc<Halo2Loader<C, EccChip>>, R, T, RATE, R_F, R_P>
 where
     C: CurveAffine,
     R: Read,
-    EccChip: NativeEncoding<'a, C>,
+    EccChip: NativeEncoding<C>,
 {
-    fn read_scalar(&mut self) -> Result<Scalar<'a, C, EccChip>, Error> {
-        let scalar = self.stream.as_mut().and_then(|stream| {
+    fn read_scalar(&mut self) -> Result<Scalar<C, EccChip>, Error> {
+        let scalar = {
             let mut data = <C::Scalar as PrimeField>::Repr::default();
-            if stream.read_exact(data.as_mut()).is_err() {
-                return Value::unknown();
-            }
-            Option::<C::Scalar>::from(C::Scalar::from_repr(data))
-                .map(Value::known)
-                .unwrap_or_else(Value::unknown)
-        });
+            self.stream.read_exact(data.as_mut()).unwrap();
+            C::Scalar::from_repr(data).unwrap()
+        };
         let scalar = self.loader.assign_scalar(scalar);
         self.common_scalar(&scalar)?;
         Ok(scalar)
     }
 
-    fn read_ec_point(&mut self) -> Result<EcPoint<'a, C, EccChip>, Error> {
-        let ec_point = self.stream.as_mut().and_then(|stream| {
+    fn read_ec_point(&mut self) -> Result<EcPoint<C, EccChip>, Error> {
+        let ec_point = {
             let mut compressed = C::Repr::default();
-            if stream.read_exact(compressed.as_mut()).is_err() {
-                return Value::unknown();
-            }
-            Option::<C>::from(C::from_bytes(&compressed))
-                .map(Value::known)
-                .unwrap_or_else(Value::unknown)
-        });
+            self.stream.read_exact(compressed.as_mut()).unwrap();
+            C::from_bytes(&compressed).unwrap()
+        };
         let ec_point = self.loader.assign_ec_point(ec_point);
         self.common_ec_point(&ec_point)?;
         Ok(ec_point)
@@ -160,14 +167,25 @@ where
 impl<C: CurveAffine, S, const T: usize, const RATE: usize, const R_F: usize, const R_P: usize>
     PoseidonTranscript<C, NativeLoader, S, T, RATE, R_F, R_P>
 {
-    pub fn new(stream: S) -> Self {
-        Self { loader: NativeLoader, stream, buf: Poseidon::new(&NativeLoader, R_F, R_P) }
+    /// Initialize [`PoseidonTranscript`] given readable or writeable stream for
+    /// verifying or proving with [`NativeLoader`].
+    pub fn new<const SECURE_MDS: usize>(stream: S) -> Self
+    where
+        C::Scalar: FieldExt,
+    {
+        Self {
+            loader: NativeLoader,
+            stream,
+            buf: Poseidon::new::<R_F, R_P, SECURE_MDS>(&NativeLoader),
+        }
     }
 
-    pub fn from_spec(stream: S, spec: crate::poseidon::Spec<C::Scalar, T, RATE>) -> Self {
+    /// Initialize [`PoseidonTranscript`] from a precomputed spec of round constants and MDS matrix because computing the constants is expensive.
+    pub fn from_spec(stream: S, spec: OptimizedPoseidonSpec<C::Scalar, T, RATE>) -> Self {
         Self { loader: NativeLoader, stream, buf: Poseidon::from_spec(&NativeLoader, spec) }
     }
 
+    /// Clear the buffer and set the stream to a new one. Effectively the same as starting from a new transcript.
     pub fn new_stream(&mut self, stream: S) {
         self.buf.clear();
         self.stream = stream;
@@ -177,6 +195,7 @@ impl<C: CurveAffine, S, const T: usize, const RATE: usize, const R_F: usize, con
 impl<C: CurveAffine, const T: usize, const RATE: usize, const R_F: usize, const R_P: usize>
     PoseidonTranscript<C, NativeLoader, Vec<u8>, T, RATE, R_F, R_P>
 {
+    /// Clear the buffer and stream.
     pub fn clear(&mut self) {
         self.buf.clear();
         self.stream.clear();
@@ -254,10 +273,12 @@ where
     C: CurveAffine,
     W: Write,
 {
+    /// Returns mutable `stream`.
     pub fn stream_mut(&mut self) -> &mut W {
         &mut self.stream
     }
 
+    /// Finalize transcript and returns `stream`.
     pub fn finalize(self) -> W {
         self.stream
     }
@@ -289,6 +310,10 @@ where
     }
 }
 
+/// [`EncodedChallenge`] implemented for verifier in [`halo2_proofs`] circuit.
+/// Currently It assumes the elliptic curve scalar field is same as native
+/// field.
+#[derive(Debug)]
 pub struct ChallengeScalar<C: CurveAffine>(C::Scalar);
 
 impl<C: CurveAffine> EncodedChallenge<C> for ChallengeScalar<C> {
@@ -357,10 +382,11 @@ impl<C, R, const T: usize, const RATE: usize, const R_F: usize, const R_P: usize
     for PoseidonTranscript<C, NativeLoader, R, T, RATE, R_F, R_P>
 where
     C: CurveAffine,
+    C::Scalar: FieldExt,
     R: Read,
 {
     fn init(reader: R) -> Self {
-        Self::new(reader)
+        Self::new::<0>(reader)
     }
 }
 
@@ -391,10 +417,11 @@ impl<C, W, const T: usize, const RATE: usize, const R_F: usize, const R_P: usize
     for PoseidonTranscript<C, NativeLoader, W, T, RATE, R_F, R_P>
 where
     C: CurveAffine,
+    C::Scalar: FieldExt,
     W: Write,
 {
     fn init(writer: W) -> Self {
-        Self::new(writer)
+        Self::new::<0>(writer)
     }
 
     fn finalize(self) -> W {
@@ -405,44 +432,20 @@ where
 mod halo2_lib {
     use crate::halo2_curves::CurveAffineExt;
     use crate::system::halo2::transcript::halo2::NativeEncoding;
-    use halo2_base::utils::PrimeField;
+    use halo2_base::utils::BigPrimeField;
     use halo2_ecc::ecc::BaseFieldEccChip;
 
-    impl<'a, C: CurveAffineExt> NativeEncoding<'a, C> for BaseFieldEccChip<C>
+    impl<'chip, C: CurveAffineExt> NativeEncoding<C> for BaseFieldEccChip<'chip, C>
     where
-        C::Scalar: PrimeField,
-        C::Base: PrimeField,
+        C::Scalar: BigPrimeField,
+        C::Base: BigPrimeField,
     {
         fn encode(
             &self,
             _: &mut Self::Context,
             ec_point: &Self::AssignedEcPoint,
         ) -> Result<Vec<Self::AssignedScalar>, crate::Error> {
-            Ok(vec![ec_point.x().native().clone(), ec_point.y().native().clone()])
+            Ok(vec![*ec_point.x().native(), *ec_point.y().native()])
         }
     }
 }
-
-/*
-mod halo2_wrong {
-    use crate::system::halo2::transcript::halo2::NativeEncoding;
-    use halo2_curves::CurveAffine;
-    use halo2_proofs::circuit::AssignedCell;
-    use halo2_wrong_ecc::BaseFieldEccChip;
-
-    impl<'a, C: CurveAffine, const LIMBS: usize, const BITS: usize> NativeEncoding<'a, C>
-        for BaseFieldEccChip<C, LIMBS, BITS>
-    {
-        fn encode(
-            &self,
-            _: &mut Self::Context,
-            ec_point: &Self::AssignedEcPoint,
-        ) -> Result<Vec<AssignedCell<C::Scalar, C::Scalar>>, crate::Error> {
-            Ok(vec![
-                ec_point.x().native().clone(),
-                ec_point.y().native().clone(),
-            ])
-        }
-    }
-}
-*/
