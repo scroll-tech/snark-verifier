@@ -6,6 +6,7 @@ use crate::{
     CircuitExt,
 };
 use ark_std::test_rng;
+use env_logger;
 use halo2_base::halo2_proofs;
 use halo2_proofs::{halo2curves::bn256::Bn256, poly::commitment::Params};
 use snark_verifier::{
@@ -13,7 +14,6 @@ use snark_verifier::{
     pcs::kzg::{Bdfg21, Kzg},
 };
 use std::path::Path;
-use env_logger;
 #[test]
 fn test_shplonk_then_sphplonk_with_evm_verification() {
     env_logger::try_init();

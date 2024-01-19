@@ -193,14 +193,19 @@ pub fn verify_evm_proof(deployment_code: Vec<u8>, instances: Vec<Vec<Fr>>, proof
 }
 
 pub fn verify_evm_calldata(deployment_code: Vec<u8>, calldata: Vec<u8>) -> bool {
-    let mut evm = ExecutorBuilder::default().with_gas_limit(u64::MAX.into()).build();
+    let mut evm =
+        ExecutorBuilder::default().set_debugger(true).with_gas_limit(u64::MAX.into()).build();
 
     let caller = Address::from_low_u64_be(0xfe);
     let verifier = evm.deploy(caller, deployment_code.into(), 0.into()).address.unwrap();
     let result = evm.call_raw(caller, verifier, calldata.into(), 0.into());
 
     log::info!("gas used: {}", result.gas_used);
-    log::debug!("evm verifier: reverted = {}, result: {}", result.reverted, hex::encode(result.result.as_ref()));
+    log::debug!(
+        "evm verifier: reverted = {}, result: {}",
+        result.reverted,
+        hex::encode(result.result.as_ref())
+    );
 
     !result.reverted
 }
