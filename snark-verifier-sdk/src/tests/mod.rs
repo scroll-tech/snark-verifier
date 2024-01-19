@@ -55,7 +55,6 @@ impl StandardPlonkConfig {
             },
         );
 
-/* gupeng
         // Lookup for multiple times to test mv-lookup.
         (0..5).for_each(|_| {
             meta.lookup("lookup a", |meta| {
@@ -63,7 +62,6 @@ impl StandardPlonkConfig {
                 vec![(a, table)]
             })
         });
-*/
 
         StandardPlonkConfig { a, b, c, q_a, q_b, q_c, q_ab, constant, instance, table }
     }
