@@ -138,7 +138,7 @@ where
         fs::write(proof_path, &proof).unwrap();
     }
 
-    debug_assert!({
+    assert!({
         let mut transcript_read = PoseidonTranscript::<NativeLoader, &[u8]>::new(proof.as_slice());
         VerificationStrategy::<_, V>::finalize(
             verify_proof::<_, V, _, _, _>(
