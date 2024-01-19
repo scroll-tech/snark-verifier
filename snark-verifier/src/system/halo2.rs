@@ -604,6 +604,9 @@ impl<'a, F: PrimeField> Polynomials<'a, F> {
             )
         };
 
+        // gupeng
+        return vec![];
+
         self.cs
             .lookups()
             .iter()
