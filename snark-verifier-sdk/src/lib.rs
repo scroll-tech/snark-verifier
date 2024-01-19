@@ -1,5 +1,7 @@
 #![feature(lazy_cell)]
 
+extern crate core;
+
 #[cfg(feature = "loader_evm")]
 mod evm_api;
 #[cfg(feature = "loader_halo2")]

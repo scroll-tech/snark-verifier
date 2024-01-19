@@ -200,6 +200,7 @@ pub fn verify_evm_calldata(deployment_code: Vec<u8>, calldata: Vec<u8>) -> bool 
     let result = evm.call_raw(caller, verifier, calldata.into(), 0.into());
 
     log::info!("gas used: {}", result.gas_used);
+    log::debug!("evm verifier: reverted = {}, result: {}", result.reverted, hex::encode(result.result.as_ref()));
 
     !result.reverted
 }
