@@ -152,7 +152,7 @@ where
 
     let instances = transcript.load_instances(num_instance);
     let proof = Plonk::<PCS>::read_proof(&svk, &protocol, &instances, &mut transcript);
-    assert!(Plonk::<PCS>::verify(&svk, &dk, &protocol, &instances, &proof));
+    assert_eq!(Plonk::<PCS>::verify(&svk, &dk, &protocol, &instances, &proof), true);
 
     let yul_code = loader.yul_code();
     let byte_code = compile_yul(&yul_code);
