@@ -13,9 +13,10 @@ use snark_verifier::{
     pcs::kzg::{Bdfg21, Kzg},
 };
 use std::path::Path;
-
+use env_logger;
 #[test]
 fn test_shplonk_then_sphplonk_with_evm_verification() {
+    env_logger::try_init();
     std::env::set_var("VERIFY_CONFIG", "./configs/example_evm_accumulator.config");
     let k = 8;
     let k_agg = 24;
