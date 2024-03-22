@@ -142,7 +142,6 @@ mod halo2_lib {
         loader::halo2::{EccInstructions, IntegerInstructions},
         util::arithmetic::{CurveAffine, PrimeField},
     };
-    use halo2_base::gates::flex_gate::threads::SinglePhaseCoreManager;
     use halo2_base::{
         self,
         gates::{
