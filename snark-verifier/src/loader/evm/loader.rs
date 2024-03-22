@@ -21,6 +21,9 @@ use std::{
     rc::Rc,
 };
 
+/// Memory pointer starts at 0x80, which is the end of the Solidity memory layout scratch space.
+pub const MEM_PTR_START: usize = 0x80;
+
 #[derive(Clone, Debug)]
 pub enum Value<T> {
     Constant(T),
@@ -76,7 +79,7 @@ impl EvmLoader {
             base_modulus,
             scalar_modulus,
             code: RefCell::new(code),
-            ptr: Default::default(),
+            ptr: RefCell::new(MEM_PTR_START),
             cache: Default::default(),
         })
     }
@@ -806,7 +809,7 @@ impl<F: PrimeField<Repr = [u8; 0x20]>> ScalarLoader<F> for Rc<EvmLoader> {
 
         let initial_value = loader.push(products.first().unwrap());
         let mut code = format!("let prod := {initial_value}\n");
-        for (_, (value, product)) in values.iter().zip(products.iter()).skip(1).enumerate() {
+        for (value, product) in values.iter().zip(products.iter()).skip(1) {
             let v = loader.push(value);
             let ptr = product.ptr();
             code.push_str(

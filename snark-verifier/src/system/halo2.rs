@@ -1,4 +1,4 @@
-//! [`halo2_proofs`] proof system
+//! [`halo2_proofs`](crate::halo2_proofs) proof system
 
 use crate::halo2_proofs::{
     plonk::{self, Any, ConstraintSystem, FirstPhase, SecondPhase, ThirdPhase, VerifyingKey},
@@ -21,7 +21,7 @@ use std::{io, iter, mem::size_of};
 pub mod strategy;
 pub mod transcript;
 
-/// Configuration for converting a [`VerifyingKey`] of [`halo2_proofs`] into
+/// Configuration for converting a [`VerifyingKey`] of [`halo2_proofs`](crate::halo2_proofs) into
 /// [`PlonkProtocol`].
 #[derive(Clone, Debug, Default)]
 pub struct Config {
@@ -78,7 +78,7 @@ impl Config {
     }
 }
 
-/// Convert a [`VerifyingKey`] of [`halo2_proofs`] into [`PlonkProtocol`].
+/// Convert a [`VerifyingKey`] of [`halo2_proofs`](crate::halo2_proofs) into [`PlonkProtocol`].
 pub fn compile<'a, C: CurveAffine, P: Params<'a, C>>(
     params: &P,
     vk: &VerifyingKey<C>,
@@ -479,8 +479,7 @@ impl<'a, F: PrimeField> Polynomials<'a, F> {
     }
 
     fn system_challenge_offset(&self) -> usize {
-        let num_challenge = self.num_challenge();
-        num_challenge[..num_challenge.len() - 3].iter().sum()
+        self.num_challenge.iter().sum()
     }
 
     fn theta(&self) -> Expression<F> {

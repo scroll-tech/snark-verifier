@@ -25,6 +25,8 @@ use std::{
     path::Path,
 };
 
+pub use snark_verifier;
+
 #[cfg(feature = "loader_evm")]
 pub mod evm;
 #[cfg(feature = "loader_halo2")]
@@ -43,8 +45,7 @@ pub type PlonkSuccinctVerifier<AS> =
 pub type SHPLONK = KzgAs<Bn256, Bdfg21>;
 pub type GWC = KzgAs<Bn256, Gwc19>;
 
-#[derive(Clone, Debug)]
-#[cfg_attr(feature = "halo2-axiom", derive(Serialize, Deserialize))]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Snark {
     pub protocol: PlonkProtocol<G1Affine>,
     pub instances: Vec<Vec<Fr>>,

@@ -37,7 +37,7 @@ use snark_verifier::{
     system::halo2::{compile, Config},
     util::arithmetic::Rotation,
     util::transcript::TranscriptWrite,
-    verifier::plonk::PlonkProof,
+    verifier::plonk::{PlonkProof, PlonkProtocol},
 };
 use std::{
     fs::{self, File},
@@ -46,6 +46,7 @@ use std::{
 };
 
 pub mod aggregation;
+pub mod utils;
 
 // Poseidon parameters
 // We use the same ones Scroll uses for security: https://github.com/scroll-tech/poseidon-circuit/blob/714f50c7572a4ff6f2b1fa51a9604a99cd7b6c71/src/poseidon/primitives/bn256/fp.rs
@@ -197,7 +198,6 @@ where
         MSMAccumulator = DualMSM<'params, Bn256>,
     >,
 {
-    #[cfg(feature = "halo2-axiom")]
     if let Some(path) = &path {
         if let Ok(snark) = read_snark(path) {
             return snark;
@@ -212,21 +212,9 @@ where
     );
 
     let instances = circuit.instances();
-    #[cfg(feature = "halo2-axiom")]
     let proof = gen_proof::<ConcreteCircuit, P, V>(params, pk, circuit, instances.clone(), None);
-    // If we can't serialize the entire snark, at least serialize the proof
-    #[cfg(not(feature = "halo2-axiom"))]
-    let proof = {
-        let path = path.map(|path| {
-            let path = path.as_ref().to_str().unwrap();
-            (format!("{path}.instances"), format!("{path}.proof"))
-        });
-        let paths = path.as_ref().map(|path| (Path::new(&path.0), Path::new(&path.1)));
-        gen_proof::<ConcreteCircuit, P, V>(params, pk, circuit, instances.clone(), paths)
-    };
 
     let snark = Snark::new(protocol, instances, proof);
-    #[cfg(feature = "halo2-axiom")]
     if let Some(path) = &path {
         let f = File::create(path).unwrap();
         #[cfg(feature = "display")]
@@ -268,44 +256,72 @@ pub fn gen_snark_shplonk<ConcreteCircuit: CircuitExt<Fr>>(
 /// Tries to deserialize a SNARK from the specified `path` using `bincode`.
 ///
 /// WARNING: The user must keep track of whether the SNARK was generated using the GWC or SHPLONK multi-open scheme.
-#[cfg(feature = "halo2-axiom")]
 pub fn read_snark(path: impl AsRef<Path>) -> Result<Snark, bincode::Error> {
     let f = File::open(path).map_err(Box::<bincode::ErrorKind>::from)?;
     bincode::deserialize_from(f)
 }
+
+pub trait NativeKzgAccumulationScheme = PolynomialCommitmentScheme<
+        G1Affine,
+        NativeLoader,
+        VerifyingKey = KzgSuccinctVerifyingKey<G1Affine>,
+        Output = KzgAccumulator<G1Affine, NativeLoader>,
+    > + AccumulationScheme<
+        G1Affine,
+        NativeLoader,
+        Accumulator = KzgAccumulator<G1Affine, NativeLoader>,
+        VerifyingKey = KzgAsVerifyingKey,
+    > + CostEstimation<G1Affine, Input = Vec<Query<Rotation>>>;
 
 // copied from snark_verifier --example recursion
 pub fn gen_dummy_snark<ConcreteCircuit, AS>(
     params: &ParamsKZG<Bn256>,
     vk: Option<&VerifyingKey<G1Affine>>,
     num_instance: Vec<usize>,
+    circuit_params: ConcreteCircuit::Params,
 ) -> Snark
 where
     ConcreteCircuit: CircuitExt<Fr>,
-    AS: PolynomialCommitmentScheme<
-            G1Affine,
-            NativeLoader,
-            VerifyingKey = KzgSuccinctVerifyingKey<G1Affine>,
-            Output = KzgAccumulator<G1Affine, NativeLoader>,
-        > + AccumulationScheme<
-            G1Affine,
-            NativeLoader,
-            Accumulator = KzgAccumulator<G1Affine, NativeLoader>,
-            VerifyingKey = KzgAsVerifyingKey,
-        > + CostEstimation<G1Affine, Input = Vec<Query<Rotation>>>,
+    ConcreteCircuit::Params: Clone,
+    AS: NativeKzgAccumulationScheme,
 {
-    struct CsProxy<F, C>(PhantomData<(F, C)>);
+    #[derive(Clone)]
+    struct CsProxy<F: Field, C: Circuit<F>> {
+        params: C::Params,
+        _marker: PhantomData<F>,
+    }
 
-    impl<F: Field, C: CircuitExt<F>> Circuit<F> for CsProxy<F, C> {
+    impl<F: Field, C: Circuit<F>> CsProxy<F, C> {
+        pub fn new(params: C::Params) -> Self {
+            Self { params, _marker: PhantomData }
+        }
+    }
+
+    impl<F: Field, C: CircuitExt<F>> Circuit<F> for CsProxy<F, C>
+    where
+        C::Params: Clone,
+    {
         type Config = C::Config;
         type FloorPlanner = C::FloorPlanner;
+        type Params = C::Params;
 
         fn without_witnesses(&self) -> Self {
-            CsProxy(PhantomData)
+            Self::new(self.params.clone())
         }
 
-        fn configure(meta: &mut ConstraintSystem<F>) -> Self::Config {
-            C::configure(meta)
+        fn params(&self) -> Self::Params {
+            self.params.clone()
+        }
+
+        fn configure_with_params(
+            meta: &mut ConstraintSystem<F>,
+            params: Self::Params,
+        ) -> Self::Config {
+            C::configure_with_params(meta, params)
+        }
+
+        fn configure(_: &mut ConstraintSystem<F>) -> Self::Config {
+            unreachable!("must use configure_with_params")
         }
 
         fn synthesize(
@@ -330,15 +346,50 @@ where
 
     let dummy_vk = vk
         .is_none()
-        .then(|| keygen_vk(params, &CsProxy::<Fr, ConcreteCircuit>(PhantomData)).unwrap());
-    let protocol = compile(
+        .then(|| keygen_vk(params, &CsProxy::<Fr, ConcreteCircuit>::new(circuit_params)).unwrap());
+
+    gen_dummy_snark_from_vk::<AS>(
         params,
         vk.or(dummy_vk.as_ref()).unwrap(),
-        Config::kzg()
-            .with_num_instance(num_instance.clone())
-            .with_accumulator_indices(ConcreteCircuit::accumulator_indices()),
+        num_instance,
+        ConcreteCircuit::accumulator_indices(),
+    )
+}
+
+/// Creates a dummy snark in the correct shape corresponding to the given verifying key.
+/// This dummy snark will **not** verify.
+/// This snark can be used as a placeholder input into an aggregation circuit expecting a snark
+/// with this verifying key.
+///
+/// Note that this function does not need to know the concrete `Circuit` type.
+pub fn gen_dummy_snark_from_vk<AS>(
+    params: &ParamsKZG<Bn256>,
+    vk: &VerifyingKey<G1Affine>,
+    num_instance: Vec<usize>,
+    accumulator_indices: Option<Vec<(usize, usize)>>,
+) -> Snark
+where
+    AS: NativeKzgAccumulationScheme,
+{
+    let protocol = compile(
+        params,
+        vk,
+        Config::kzg().with_num_instance(num_instance).with_accumulator_indices(accumulator_indices),
     );
-    let instances = num_instance.into_iter().map(|n| vec![Fr::default(); n]).collect();
+    gen_dummy_snark_from_protocol::<AS>(protocol)
+}
+
+/// Creates a dummy snark in the correct shape corresponding to the given Plonk protocol.
+/// This dummy snark will **not** verify.
+/// This snark can be used as a placeholder input into an aggregation circuit expecting a snark
+/// with this protocol.
+///
+/// Note that this function does not need to know the concrete `Circuit` type.
+pub fn gen_dummy_snark_from_protocol<AS>(protocol: PlonkProtocol<G1Affine>) -> Snark
+where
+    AS: NativeKzgAccumulationScheme,
+{
+    let instances = protocol.num_instance.iter().map(|&n| vec![Fr::default(); n]).collect();
     let proof = {
         let mut transcript = PoseidonTranscript::<NativeLoader, _>::new::<SECURE_MDS>(Vec::new());
         for _ in 0..protocol

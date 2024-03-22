@@ -26,13 +26,14 @@ use snark_verifier::util::arithmetic::fe_to_limbs;
 use snark_verifier::{
     loader::{
         self,
-        halo2::halo2_ecc::{self, bn254::FpChip},
+        halo2::halo2_ecc::{self, bigint::ProperCrtUint, bn254::FpChip},
         native::NativeLoader,
     },
     pcs::{
         kzg::{KzgAccumulator, KzgAsProvingKey, KzgAsVerifyingKey, KzgSuccinctVerifyingKey},
         AccumulationScheme, AccumulationSchemeProver, PolynomialCommitmentScheme,
     },
+    system::halo2::transcript::halo2::TranscriptObject,
     verifier::SnarkVerifier,
 };
 use std::{fs::File, mem, path::Path, rc::Rc};
@@ -52,11 +53,17 @@ pub struct PreprocessedAndDomainAsWitness {
 
 #[derive(Clone, Debug)]
 pub struct SnarkAggregationWitness<'a> {
+    /// The (flattened) public instances from previous snarks that were aggregated, now collected as PRIVATE assigned values.
+    /// * If previous snark was from aggregation circuit, the previous instances will still contain the old KZG accumulator.
+    ///
+    /// The user can optionally append these private witnesses to `inner.assigned_instances` to expose them.
     pub previous_instances: Vec<Vec<AssignedValue<Fr>>>,
     pub accumulator: KzgAccumulator<G1Affine, Rc<Halo2Loader<'a>>>,
     /// This returns the assigned `preprocessed` and `transcript_initial_state` values as a vector of assigned values, one for each aggregated snark.
     /// These can then be exposed as public instances.
     pub preprocessed: Vec<PreprocessedAndDomainAsWitness>,
+    /// The proof transcript, as loaded scalars and elliptic curve points, for each SNARK that was aggregated.
+    pub proof_transcripts: Vec<Vec<TranscriptObject<G1Affine, Rc<Halo2Loader<'a>>>>>,
 }
 
 /// Different possible stages of universality the aggregation circuit can support
@@ -133,9 +140,9 @@ where
     );
 
     let preprocessed_as_witness = universality.preprocessed_as_witness();
-    let mut accumulators = snarks
+    let (proof_transcripts, accumulators): (Vec<_>, Vec<_>) = snarks
         .iter()
-        .flat_map(|snark: &Snark| {
+        .map(|snark: &Snark| {
             let protocol = if preprocessed_as_witness {
                 // always load `domain.n` as witness if vkey is witness
                 snark.protocol.loaded_preprocessed_as_witness(loader, universality.k_as_witness())
@@ -185,10 +192,21 @@ where
             previous_instances.push(
                 instances.into_iter().flatten().map(|scalar| scalar.into_assigned()).collect(),
             );
-
-            accumulator
+            let proof_transcript = transcript.loaded_stream.clone();
+            debug_assert_eq!(
+                snark.proof().len(),
+                proof_transcript
+                    .iter()
+                    .map(|t| match t {
+                        TranscriptObject::Scalar(_) => 32,
+                        TranscriptObject::EcPoint(_) => 32,
+                    })
+                    .sum::<usize>()
+            );
+            (proof_transcript, accumulator)
         })
-        .collect_vec();
+        .unzip();
+    let mut accumulators = accumulators.into_iter().flatten().collect_vec();
 
     let accumulator = if accumulators.len() > 1 {
         transcript.new_stream(as_proof);
@@ -208,6 +226,7 @@ where
         previous_instances,
         accumulator,
         preprocessed: preprocessed_witnesses,
+        proof_transcripts,
     }
 }
 
@@ -280,8 +299,10 @@ impl TryFrom<BaseCircuitParams> for AggregationConfigParams {
 pub struct AggregationCircuit {
     /// Circuit builder consisting of virtual region managers
     pub builder: BaseCircuitBuilder<Fr>,
-    // the public instances from previous snarks that were aggregated, now collected as PRIVATE assigned values
-    // the user can optionally append these to `inner.assigned_instances` to expose them
+    /// The (flattened) public instances from previous snarks that were aggregated, now collected as PRIVATE assigned values.
+    /// * If previous snark was from aggregation circuit, the previous instances will still contain the old KZG accumulator.
+    ///
+    /// The user can optionally append these private witnesses to `inner.assigned_instances` to expose them.
     #[getset(get = "pub")]
     previous_instances: Vec<Vec<AssignedValue<Fr>>>,
     /// This returns the assigned `preprocessed_digest` (vkey), optional `transcript_initial_state`, `domain.n` (optional), and `omega` (optional) values as a vector of assigned values, one for each aggregated snark.
@@ -324,6 +345,15 @@ pub struct SnarkAggregationOutput {
     /// This returns the assigned `preprocessed` and `transcript_initial_state` values as a vector of assigned values, one for each aggregated snark.
     /// These can then be exposed as public instances.
     pub preprocessed: Vec<PreprocessedAndDomainAsWitness>,
+    /// The proof transcript, as loaded scalars and elliptic curve points, for each SNARK that was aggregated.
+    pub proof_transcripts: Vec<Vec<AssignedTranscriptObject>>,
+}
+
+#[allow(clippy::large_enum_variant)]
+#[derive(Clone, Debug)]
+pub enum AssignedTranscriptObject {
+    Scalar(AssignedValue<Fr>),
+    EcPoint(halo2_ecc::ecc::EcPoint<Fr, ProperCrtUint<Fr>>),
 }
 
 /// Given snarks, this populates the circuit builder with the virtual cells and constraints necessary to verify all the snarks.
@@ -397,8 +427,12 @@ where
     let loader = Halo2Loader::new(ecc_chip, tmp_pool);
 
     // run witness and copy constraint generation
-    let SnarkAggregationWitness { previous_instances, accumulator, preprocessed } =
-        aggregate::<AS>(&svk, &loader, &snarks, as_proof.as_slice(), universality);
+    let SnarkAggregationWitness {
+        previous_instances,
+        accumulator,
+        preprocessed,
+        proof_transcripts,
+    } = aggregate::<AS>(&svk, &loader, &snarks, as_proof.as_slice(), universality);
     let lhs = accumulator.lhs.assigned();
     let rhs = accumulator.rhs.assigned();
     let accumulator = lhs
@@ -410,6 +444,22 @@ where
         .chain(rhs.y().limbs().iter())
         .copied()
         .collect_vec();
+    let proof_transcripts = proof_transcripts
+        .into_iter()
+        .map(|transcript| {
+            transcript
+                .into_iter()
+                .map(|obj| match obj {
+                    TranscriptObject::Scalar(scalar) => {
+                        AssignedTranscriptObject::Scalar(scalar.into_assigned())
+                    }
+                    TranscriptObject::EcPoint(point) => {
+                        AssignedTranscriptObject::EcPoint(point.into_assigned())
+                    }
+                })
+                .collect()
+        })
+        .collect();
 
     #[cfg(debug_assertions)]
     {
@@ -422,7 +472,7 @@ where
     }
     // put back `pool` into `builder`
     *pool = loader.take_ctx();
-    SnarkAggregationOutput { previous_instances, accumulator, preprocessed }
+    SnarkAggregationOutput { previous_instances, accumulator, preprocessed, proof_transcripts }
 }
 
 impl AggregationCircuit {
@@ -452,7 +502,7 @@ impl AggregationCircuit {
         let svk: Svk = params.get_g()[0].into();
         let mut builder = BaseCircuitBuilder::from_stage(stage).use_params(config_params.into());
         let range = builder.range_chip();
-        let SnarkAggregationOutput { previous_instances, accumulator, preprocessed } =
+        let SnarkAggregationOutput { previous_instances, accumulator, preprocessed, .. } =
             aggregate_snarks::<AS>(builder.pool(0), &range, svk, snarks, universality);
         assert_eq!(
             builder.assigned_instances.len(),
