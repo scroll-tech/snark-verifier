@@ -146,13 +146,16 @@ where
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct QuotientPolynomial<F: Clone> {
+    // Note that `num_chunk` might be larger than necessary, due to the degree of
+    // constraint system (in the form of 2^k + 1)
+    pub num_chunk: usize,
     pub chunk_degree: usize,
     pub numerator: Expression<F>,
 }
 
 impl<F: Clone> QuotientPolynomial<F> {
     pub fn num_chunk(&self) -> usize {
-        Integer::div_ceil(&(self.numerator.degree() - 1), &self.chunk_degree)
+        self.num_chunk
     }
 }
 
