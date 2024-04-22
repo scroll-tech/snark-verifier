@@ -178,6 +178,7 @@ struct Polynomials<'a, F: PrimeField> {
     cs: &'a ConstraintSystem<F>,
     zk: bool,
     query_instance: bool,
+    degree: usize,
     num_proof: usize,
     num_fixed: usize,
     num_permutation_fixed: usize,
@@ -234,6 +235,7 @@ impl<'a, F: PrimeField> Polynomials<'a, F> {
             cs,
             zk,
             query_instance,
+            degree,
             num_proof,
             num_fixed: cs.num_fixed_columns(),
             num_permutation_fixed: cs.permutation().get_columns().len(),
@@ -653,7 +655,7 @@ impl<'a, F: PrimeField> Polynomials<'a, F> {
             })
             .collect_vec();
         let numerator = Expression::DistributePowers(constraints, self.alpha().into());
-        QuotientPolynomial { chunk_degree: 1, numerator }
+        QuotientPolynomial { num_chunk: self.degree - 1, chunk_degree: 1, numerator }
     }
 
     fn accumulator_indices(
