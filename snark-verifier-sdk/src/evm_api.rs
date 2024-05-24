@@ -196,8 +196,15 @@ pub fn verify_evm_calldata(deployment_code: Vec<u8>, calldata: Vec<u8>) -> bool 
     let mut evm = ExecutorBuilder::default().with_gas_limit(u64::MAX.into()).build();
 
     let caller = Address::from_low_u64_be(0xfe);
-    let verifier = evm.deploy(caller, deployment_code.into(), 0.into()).address.unwrap();
-    let result = evm.call_raw(caller, verifier, calldata.into(), 0.into());
+    let deploy_result = evm.deploy(caller, deployment_code.into(), 0.into());
+
+    let verifier_address = match deploy_result.address {
+        None => {
+            panic!("deploy failed {deploy_result:?}");
+        },
+        Some(verifier_address) => verifier_address,
+    };
+    let result = evm.call_raw(caller, verifier_address, calldata.into(), 0.into());
 
     log::info!("gas used: {}", result.gas_used);
 
