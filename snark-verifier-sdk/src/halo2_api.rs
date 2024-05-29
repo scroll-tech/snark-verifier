@@ -84,7 +84,7 @@ pub fn gen_proof<'params, C, P, V>(
     instances: Vec<Vec<Fr>>,
     rng: &mut (impl Rng + Send),
     path: Option<(&Path, &Path)>,
-) -> Vec<u8>
+) -> Result<Vec<u8>, halo2_base::halo2_proofs::plonk::Error>
 where
     C: Circuit<Fr>,
     P: Prover<'params, KZGCommitmentScheme<Bn256>>,
@@ -115,7 +115,7 @@ where
 
             #[cfg(feature = "display")]
             end_timer!(read_time);
-            return proof;
+            return Ok(proof);
         }
     }
 
@@ -126,8 +126,7 @@ where
 
     let mut transcript =
         PoseidonTranscript::<NativeLoader, Vec<u8>>::from_spec(vec![], POSEIDON_SPEC.clone());
-    create_proof::<_, P, _, _, _, _>(params, pk, &[circuit], &[&instances], rng, &mut transcript)
-        .unwrap();
+    create_proof::<_, P, _, _, _, _>(params, pk, &[circuit], &[&instances], rng, &mut transcript)?;
     let proof = transcript.finalize();
 
     #[cfg(feature = "display")]
@@ -138,21 +137,21 @@ where
         fs::write(proof_path, &proof).unwrap();
     }
 
-    debug_assert!({
+    let verification_ok = {
         let mut transcript_read = PoseidonTranscript::<NativeLoader, &[u8]>::new(proof.as_slice());
-        VerificationStrategy::<_, V>::finalize(
-            verify_proof::<_, V, _, _, _>(
-                params.verifier_params(),
-                pk.get_vk(),
-                AccumulatorStrategy::new(params.verifier_params()),
-                &[instances.as_slice()],
-                &mut transcript_read,
-            )
-            .unwrap(),
-        )
-    });
+        VerificationStrategy::<_, V>::finalize(verify_proof::<_, V, _, _, _>(
+            params.verifier_params(),
+            pk.get_vk(),
+            AccumulatorStrategy::new(params.verifier_params()),
+            &[instances.as_slice()],
+            &mut transcript_read,
+        )?)
+    };
+    if !verification_ok {
+        return Err(halo2_base::halo2_proofs::plonk::Error::ConstraintSystemFailure);
+    }
 
-    proof
+    Ok(proof)
 }
 
 /// Generates a native proof using original Plonk (GWC '19) multi-open scheme. Uses Poseidon for Fiat-Shamir.
@@ -165,7 +164,7 @@ pub fn gen_proof_gwc<C: Circuit<Fr>>(
     instances: Vec<Vec<Fr>>,
     rng: &mut (impl Rng + Send),
     path: Option<(&Path, &Path)>,
-) -> Vec<u8> {
+) -> Result<Vec<u8>, halo2_base::halo2_proofs::plonk::Error> {
     gen_proof::<C, ProverGWC<_>, VerifierGWC<_>>(params, pk, circuit, instances, rng, path)
 }
 
@@ -179,7 +178,7 @@ pub fn gen_proof_shplonk<C: Circuit<Fr>>(
     instances: Vec<Vec<Fr>>,
     rng: &mut (impl Rng + Send),
     path: Option<(&Path, &Path)>,
-) -> Vec<u8> {
+) -> Result<Vec<u8>, halo2_base::halo2_proofs::plonk::Error> {
     gen_proof::<C, ProverSHPLONK<_>, VerifierSHPLONK<_>>(params, pk, circuit, instances, rng, path)
 }
 
@@ -193,7 +192,7 @@ pub fn gen_snark<'params, ConcreteCircuit, P, V>(
     circuit: ConcreteCircuit,
     rng: &mut (impl Rng + Send),
     path: Option<impl AsRef<Path>>,
-) -> Snark
+) -> Result<Snark, halo2_base::halo2_proofs::plonk::Error>
 where
     ConcreteCircuit: CircuitExt<Fr>,
     P: Prover<'params, KZGCommitmentScheme<Bn256>>,
@@ -206,7 +205,7 @@ where
 {
     if let Some(path) = &path {
         if let Ok(snark) = read_snark(path) {
-            return snark;
+            return Ok(snark);
         }
     }
     let protocol = compile(
@@ -219,7 +218,7 @@ where
 
     let instances = circuit.instances();
     let proof =
-        gen_proof::<ConcreteCircuit, P, V>(params, pk, circuit, instances.clone(), rng, None);
+        gen_proof::<ConcreteCircuit, P, V>(params, pk, circuit, instances.clone(), rng, None)?;
 
     let snark = Snark::new(protocol, instances, proof);
     if let Some(path) = &path {
@@ -230,7 +229,7 @@ where
         #[cfg(feature = "display")]
         end_timer!(write_time);
     }
-    snark
+    Ok(snark)
 }
 
 /// Generates a SNARK using GWC multi-open scheme. Uses Poseidon for Fiat-Shamir.
@@ -243,7 +242,7 @@ pub fn gen_snark_gwc<ConcreteCircuit: CircuitExt<Fr>>(
     circuit: ConcreteCircuit,
     rng: &mut (impl Rng + Send),
     path: Option<impl AsRef<Path>>,
-) -> Snark {
+) -> Result<Snark, halo2_base::halo2_proofs::plonk::Error> {
     gen_snark::<ConcreteCircuit, ProverGWC<_>, VerifierGWC<_>>(params, pk, circuit, rng, path)
 }
 
@@ -257,7 +256,7 @@ pub fn gen_snark_shplonk<ConcreteCircuit: CircuitExt<Fr>>(
     circuit: ConcreteCircuit,
     rng: &mut (impl Rng + Send),
     path: Option<impl AsRef<Path>>,
-) -> Snark {
+) -> Result<Snark, halo2_base::halo2_proofs::plonk::Error> {
     gen_snark::<ConcreteCircuit, ProverSHPLONK<_>, VerifierSHPLONK<_>>(
         params, pk, circuit, rng, path,
     )

@@ -201,7 +201,7 @@ pub fn verify_evm_calldata(deployment_code: Vec<u8>, calldata: Vec<u8>) -> bool 
     let verifier_address = match deploy_result.address {
         None => {
             panic!("deploy failed {deploy_result:?}");
-        },
+        }
         Some(verifier_address) => verifier_address,
     };
     let result = evm.call_raw(caller, verifier_address, calldata.into(), 0.into());

@@ -40,6 +40,7 @@ fn test_two_layer_aggregation_evm_verification() {
                 &mut rng,
                 Some(Path::new(&format!("data/inner_{}.snark", i).to_string())),
             )
+            .unwrap()
         })
         .collect::<Vec<_>>();
     println!("finished snark generation");
@@ -54,7 +55,8 @@ fn test_two_layer_aggregation_evm_verification() {
         first_agg_circuit.clone(),
         &mut rng,
         Some(Path::new("data/outer.snark")),
-    );
+    )
+    .unwrap();
     println!("finished outer proof generation");
 
     // layer 3, second aggregation

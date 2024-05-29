@@ -37,7 +37,8 @@ fn test_shplonk_then_sphplonk_with_evm_verification() {
         circuit_1.clone(),
         &mut rng,
         Some(Path::new("data/inner_1.snark")),
-    );
+    )
+    .unwrap();
     println!("finished snark generation for circuit 1");
 
     // Another Proof for circuit 1
@@ -49,7 +50,8 @@ fn test_shplonk_then_sphplonk_with_evm_verification() {
         circuit_2.clone(),
         &mut rng,
         Some(Path::new("data/inner_2.snark")),
-    );
+    )
+    .unwrap();
     println!("finished snark generation for circuit 1");
 
     // Proof for circuit 2
@@ -61,7 +63,8 @@ fn test_shplonk_then_sphplonk_with_evm_verification() {
         circuit_3.clone(),
         &mut rng,
         Some(Path::new("data/inner_3.snark")),
-    );
+    )
+    .unwrap();
     println!("finished snark generation for circuit 1");
 
     // aggregation circuit

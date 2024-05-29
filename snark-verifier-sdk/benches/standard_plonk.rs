@@ -171,7 +171,7 @@ fn gen_application_snark(params: &ParamsKZG<Bn256>) -> Snark {
     let circuit = application::StandardPlonk::rand(OsRng);
 
     let pk = gen_pk(params, &circuit, None);
-    gen_snark_shplonk(params, &pk, circuit, &mut OsRng, None::<&str>)
+    gen_snark_shplonk(params, &pk, circuit, &mut OsRng, None::<&str>).unwrap()
 }
 
 fn bench(c: &mut Criterion) {
