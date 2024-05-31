@@ -189,7 +189,21 @@ pub fn evm_verify(deployment_code: Vec<u8>, instances: Vec<Vec<Fr>>, proof: Vec<
 
 pub fn verify_evm_proof(deployment_code: Vec<u8>, instances: Vec<Vec<Fr>>, proof: Vec<u8>) -> bool {
     let calldata = encode_calldata(&instances, &proof);
-    verify_evm_calldata(deployment_code, calldata)
+    let use_new_evm = true;
+    if use_new_evm {
+        match snark_verifier::loader::evm::deploy_and_call(deployment_code, calldata) {
+            Ok(gas) => {
+                log::info!("verify_evm_proof gas {}", gas);
+                true
+            }
+            Err(reason) => {
+                log::error!("verify_evm_proof failed {}", reason);
+                false
+            }
+        }
+    } else {
+        verify_evm_calldata(deployment_code, calldata)
+    }
 }
 
 pub fn verify_evm_calldata(deployment_code: Vec<u8>, calldata: Vec<u8>) -> bool {

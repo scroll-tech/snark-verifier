@@ -10,8 +10,10 @@ use std::{
 };
 
 pub(crate) mod executor;
+pub(crate) mod executor2;
 
 pub use executor::ExecutorBuilder;
+pub use executor2::deploy_and_call;
 
 /// Memory chunk in EVM.
 #[derive(Debug)]
