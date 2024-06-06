@@ -144,10 +144,18 @@ where
     }
 }
 
+/// This is only used for serialize
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn is_zero(num: &usize) -> bool {
+    *num == 0
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct QuotientPolynomial<F: Clone> {
     // Note that `num_chunk` might be larger than necessary, due to the degree of
     // constraint system (in the form of 2^k + 1)
+    #[serde(skip_serializing_if = "is_zero")]
+    #[serde(default)]
     pub num_chunk: usize,
     pub chunk_degree: usize,
     pub numerator: Expression<F>,
@@ -155,7 +163,12 @@ pub struct QuotientPolynomial<F: Clone> {
 
 impl<F: Clone> QuotientPolynomial<F> {
     pub fn num_chunk(&self) -> usize {
-        self.num_chunk
+        if self.num_chunk != 0 {
+            self.num_chunk
+        } else {
+            // Helpful for loading old proofs
+            Integer::div_ceil(&(self.numerator.degree() - 1), &self.chunk_degree)
+        }
     }
 }
 
