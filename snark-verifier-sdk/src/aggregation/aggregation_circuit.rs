@@ -129,6 +129,7 @@ impl CircuitExt<Fr> for AggregationCircuit {
 }
 
 impl Circuit<Fr> for AggregationCircuit {
+    type Params = ();
     type Config = AggregationConfig;
     type FloorPlanner = SimpleFloorPlanner;
 
