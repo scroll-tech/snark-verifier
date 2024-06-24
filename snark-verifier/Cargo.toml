@@ -26,7 +26,7 @@ halo2-base = { git = "https://github.com/z2trillion/halo2-lib.git", branch = "ax
 
 # loader_halo2
 # halo2-ecc = { version = "=0.4.1", default-features = false, optional = true }
-halo2-ecc = { git = "https://github.com/axiom-crypto/halo2-lib.git", branch = "community-edition", default-features = false, optional = true }
+halo2-ecc = { git = "https://github.com/z2trillion/halo2-lib.git", branch = "axiom/community-edition", default-features = false, optional = true }
 
 # parallel
 rayon = { version = "1.8", optional = true }
