@@ -1,5 +1,5 @@
 //! [`halo2_proofs`](crate::halo2_proofs) proof system
-
+use crate::halo2_curves::group::ff::FromUniformBytes;
 use crate::halo2_proofs::{
     plonk::{self, Any, ConstraintSystem, FirstPhase, SecondPhase, ThirdPhase, VerifyingKey},
     poly::{self, commitment::Params},
@@ -83,7 +83,10 @@ pub fn compile<'a, C: CurveAffine, P: Params<'a, C>>(
     params: &P,
     vk: &VerifyingKey<C>,
     config: Config,
-) -> PlonkProtocol<C> {
+) -> PlonkProtocol<C>
+where
+    C::Scalar: FromUniformBytes<64>,
+{
     assert_eq!(vk.get_domain().k(), params.k());
 
     let cs = vk.cs();
@@ -611,7 +614,7 @@ impl<'a, F: PrimeField> Polynomials<'a, F> {
             })
             .collect_vec();
 
-        let compress = |expressions: &'a [plonk::Expression<F>]| {
+        let compress = |expressions: &[plonk::Expression<F>]| {
             Expression::DistributePowers(
                 expressions.iter().map(|expression| self.convert(expression, t)).collect(),
                 self.theta().into(),
@@ -621,13 +624,16 @@ impl<'a, F: PrimeField> Polynomials<'a, F> {
         self.cs
             .lookups()
             .iter()
-            .zip(polys.iter())
+            .zip(polys.iter()) // zip_eq?
             .flat_map(
                 |(
                     lookup,
                     (z, z_omega, permuted_input, permuted_input_omega_inv, permuted_table),
                 )| {
-                    let input = compress(lookup.input_expressions());
+                    // TODO: check that this change is correct!!
+                    let input_expressions: Vec<_> =
+                        lookup.input_expressions().iter().flatten().cloned().collect();
+                    let input = compress(&input_expressions);
                     let table = compress(lookup.table_expressions());
                     iter::empty()
                         .chain(Some(l_0 * (one - z)))
@@ -717,7 +723,10 @@ impl<C: CurveAffine> Transcript<C, MockChallenge> for MockTranscript<C::Scalar> 
 
 /// Returns the transcript initial state of the [VerifyingKey].
 /// Roundabout way to do it because [VerifyingKey] doesn't expose the field.
-pub fn transcript_initial_state<C: CurveAffine>(vk: &VerifyingKey<C>) -> C::Scalar {
+pub fn transcript_initial_state<C: CurveAffine>(vk: &VerifyingKey<C>) -> C::Scalar
+where
+    C::Scalar: FromUniformBytes<64>,
+{
     let mut transcript = MockTranscript::default();
     vk.hash_into(&mut transcript).unwrap();
     transcript.0
