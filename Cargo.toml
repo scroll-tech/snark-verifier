@@ -1,8 +1,5 @@
 [workspace]
-members = [
-    "snark-verifier",
-    "snark-verifier-sdk",
-]
+members = ["snark-verifier", "snark-verifier-sdk"]
 resolver = "2"
 
 [profile.dev]
@@ -25,7 +22,7 @@ codegen-units = 16
 opt-level = 3
 debug = false
 debug-assertions = false
-lto = "fat" 
+lto = "fat"
 # codegen-units = 1
 panic = "abort"
 incremental = false
@@ -35,9 +32,16 @@ incremental = false
 inherits = "release"
 debug = true
 
-# patch until PR https://github.com/privacy-scaling-explorations/halo2/pull/111 is merged
+[patch.crates-io]
+halo2curves = { git = "https://github.com/scroll-tech/halo2curves", branch = "v0.1.0" }
+[patch."https://github.com/privacy-scaling-explorations/bls12_381"]
+bls12_381 = { git = "https://github.com/scroll-tech/bls12_381", branch = "feat/impl_scalar_field" }
+
 [patch."https://github.com/privacy-scaling-explorations/halo2.git"]
-halo2_proofs = { git = "https://github.com/scroll-tech/halo2.git", branch = "v1.1" }
+halo2_proofs = { git = "https://github.com/axiom-crypto/halo2.git", branch = "scroll_v1.1" }
+
+[patch."https://github.com/scroll-tech/halo2.git"] # Until Scroll merges PR
+halo2_proofs = { git = "https://github.com/axiom-crypto/halo2.git", branch = "scroll_v1.1" }
 
 [patch."https://github.com/privacy-scaling-explorations/poseidon.git"]
 poseidon = { git = "https://github.com/scroll-tech/poseidon.git", branch = "main" }
