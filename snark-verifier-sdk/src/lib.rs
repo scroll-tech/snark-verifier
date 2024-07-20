@@ -8,22 +8,32 @@ mod halo2_api;
 #[cfg(test)]
 mod tests;
 
+#[cfg(feature = "loader_halo2")]
 mod aggregation;
 mod circuit_ext;
 mod file_io;
 mod param;
 mod snark;
+#[cfg(feature = "loader_halo2")]
 pub mod types;
 
+#[cfg(feature = "loader_halo2")]
 pub use aggregation::aggregation_circuit::AggregationCircuit;
+#[cfg(feature = "loader_halo2")]
 pub use aggregation::load_verify_circuit_degree;
+#[cfg(feature = "loader_halo2")]
 pub use aggregation::multi_aggregation_circuit::PublicAggregationCircuit;
+#[cfg(feature = "loader_halo2")]
 pub use aggregation::{aggregate, flatten_accumulator};
 pub use circuit_ext::CircuitExt;
 pub use param::{BITS, LIMBS};
+#[cfg(feature = "loader_halo2")]
 pub use snark::gen_dummy_snark;
 pub use snark::{Snark, SnarkWitness};
 
+#[cfg(feature = "loader_evm")]
+// write call date to disk
+pub use file_io::write_calldata;
 pub use file_io::{
     // read instances from disk
     read_instances,
@@ -31,8 +41,6 @@ pub use file_io::{
     read_pk,
     // read snark from disk
     read_snark,
-    // write call date to disk
-    write_calldata,
     // write instances to disk
     write_instances,
 };

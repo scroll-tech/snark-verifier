@@ -10,6 +10,7 @@ use halo2_base::halo2_proofs::{
     SerdeFormat,
 };
 use itertools::Itertools;
+#[cfg(feature = "loader_evm")]
 use snark_verifier::loader::evm::encode_calldata;
 
 use crate::Snark;
@@ -78,6 +79,7 @@ pub fn read_snark(path: impl AsRef<Path>) -> Result<Snark, bincode::Error> {
     bincode::deserialize_from(f)
 }
 
+#[cfg(feature = "loader_evm")]
 /// Write the calldata to disk
 pub fn write_calldata(instances: &[Vec<Fr>], proof: &[u8], path: &Path) -> std::io::Result<String> {
     let calldata = encode_calldata(instances, proof);
