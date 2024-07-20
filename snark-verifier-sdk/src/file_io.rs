@@ -10,6 +10,7 @@ use halo2_base::halo2_proofs::{
     SerdeFormat,
 };
 use itertools::Itertools;
+#[cfg(feature = "loader_evm")]
 use snark_verifier::loader::evm::encode_calldata;
 
 use crate::Snark;
@@ -57,7 +58,12 @@ pub fn read_pk<C: Circuit<Fr>>(path: &Path) -> std::io::Result<ProvingKey<G1Affi
     // let initial_buffer_size = f.metadata().map(|m| m.len() as usize + 1).unwrap_or(0);
     // let mut bufreader = Vec::with_capacity(initial_buffer_size);
     // f.read_to_end(&mut bufreader)?;
-    let pk = ProvingKey::read::<_, C>(&mut bufreader, SerdeFormat::RawBytesUnchecked).unwrap();
+    let pk = ProvingKey::read::<_, C>(
+        &mut bufreader,
+        SerdeFormat::RawBytesUnchecked,
+        Default::default(),
+    )
+    .unwrap();
 
     #[cfg(feature = "display")]
     end_timer!(read_time);
@@ -73,6 +79,7 @@ pub fn read_snark(path: impl AsRef<Path>) -> Result<Snark, bincode::Error> {
     bincode::deserialize_from(f)
 }
 
+#[cfg(feature = "loader_evm")]
 /// Write the calldata to disk
 pub fn write_calldata(instances: &[Vec<Fr>], proof: &[u8], path: &Path) -> std::io::Result<String> {
     let calldata = encode_calldata(instances, proof);

@@ -7,8 +7,10 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use snark_verifier::Protocol;
 
+#[cfg(feature = "loader_halo2")]
 mod mock;
 
+#[cfg(feature = "loader_halo2")]
 pub use mock::gen_dummy_snark;
 
 /// A Snark struct is all one may need to generate witnesses for an aggregation circuit.
