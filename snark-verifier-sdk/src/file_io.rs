@@ -61,7 +61,7 @@ pub fn read_pk<C: Circuit<Fr>>(
     // let mut bufreader = Vec::with_capacity(initial_buffer_size);
     // f.read_to_end(&mut bufreader)?;
     let pk =
-        ProvingKey::read::<_, C>(&mut bufreader, SerdeFormat::RawBytesUnchecked, params).unwrap();
+        ProvingKey::read::<_, C>(&mut bufreader, SerdeFormat::RawBytesUnchecked, params)?;
 
     #[cfg(feature = "display")]
     end_timer!(read_time);
