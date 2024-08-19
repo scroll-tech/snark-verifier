@@ -31,6 +31,7 @@ impl CircuitExt<Fr> for TestCircuit2 {
 impl Circuit<Fr> for TestCircuit2 {
     type Config = StandardPlonkConfig;
     type FloorPlanner = SimpleFloorPlanner;
+    type Params = ();
 
     fn without_witnesses(&self) -> Self {
         Self::default()

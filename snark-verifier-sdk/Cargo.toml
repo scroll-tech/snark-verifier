@@ -39,6 +39,11 @@ ethereum-types = { version = "0.14", default-features = false, features = ["std"
 # eth-types = { git = "https://github.com/scroll-tech/zkevm-circuits.git", branch = "halo2-ecc-snark-verifier-0220", optional = true }
 # mock = { git = "https://github.com/scroll-tech/zkevm-circuits.git", branch = "halo2-ecc-snark-verifier-0220", optional = true }
 
+[dependencies.halo2_proofs]
+git = "https://github.com/scroll-tech/halo2.git"
+branch = "v1.1" 
+features = ["circuit-params"] 
+
 [dev-dependencies]
 ark-std = { version = "0.3.0", features = ["print-trace"] }
 paste = "1.0.7"
