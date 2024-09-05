@@ -163,7 +163,6 @@ mod halo2_lib {
     use crate::{
         halo2_proofs::{
             circuit::{Cell, Value},
-            halo2curves::CurveAffineExt,
             plonk::Error,
         },
         loader::halo2::{Context, EccInstructions, IntegerInstructions},
@@ -171,7 +170,7 @@ mod halo2_lib {
     };
     use halo2_base::{
         gates::{flex_gate::FlexGateConfig, GateInstructions, RangeInstructions},
-        utils::BigPrimeField as PrimeField,
+        utils::{BigPrimeField as PrimeField, CurveAffineExt},
         AssignedValue,
         QuantumCell::{Constant, Existing, Witness},
         {self},

@@ -31,6 +31,7 @@ use std::marker::PhantomData;
 struct CsProxy<F, C>(PhantomData<(F, C)>);
 
 impl<F: Field, C: CircuitExt<F>> Circuit<F> for CsProxy<F, C> {
+    type Params = ();
     type Config = C::Config;
     type FloorPlanner = C::FloorPlanner;
 

@@ -226,7 +226,6 @@ mod common {
         impl<F: Field, C: CircuitExt<F>> Circuit<F> for CsProxy<F, C> {
             type Config = C::Config;
             type FloorPlanner = C::FloorPlanner;
-            #[cfg(feature = "circuit-params")]
             type Params = ();
 
             fn without_witnesses(&self) -> Self {
@@ -304,7 +303,6 @@ mod application {
     impl Circuit<Fr> for Square {
         type Config = Selector;
         type FloorPlanner = SimpleFloorPlanner;
-        #[cfg(feature = "circuit-params")]
         type Params = ();
 
         fn without_witnesses(&self) -> Self {
@@ -624,6 +622,7 @@ mod recursion {
     impl Circuit<Fr> for RecursionCircuit {
         type Config = RecursionConfig;
         type FloorPlanner = SimpleFloorPlanner;
+        type Params = ();
 
         fn without_witnesses(&self) -> Self {
             Self {

@@ -46,7 +46,7 @@ pub fn gen_pk<C: Circuit<Fr>>(
     path: Option<&Path>,
 ) -> ProvingKey<G1Affine> {
     if let Some(path) = path {
-        if let Ok(pk) = read_pk::<C>(path) {
+        if let Ok(pk) = read_pk::<C>(path, circuit.params()) {
             return pk;
         }
     }

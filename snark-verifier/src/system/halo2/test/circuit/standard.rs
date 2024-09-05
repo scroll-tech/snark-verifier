@@ -64,6 +64,7 @@ impl<F: PrimeField> StandardPlonk<F> {
 }
 
 impl<F: PrimeField> Circuit<F> for StandardPlonk<F> {
+    type Params = ();
     type Config = StandardPlonkConfig;
     type FloorPlanner = SimpleFloorPlanner;
     #[cfg(feature = "circuit-params")]
