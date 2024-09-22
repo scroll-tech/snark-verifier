@@ -76,14 +76,14 @@ where
         println!("=> -> read<T, AE> -> After instances.len()");
 
         let committed_instances = if let Some(ick) = &protocol.instance_committing_key {
-            println!("=> -> read<T, AE> -> instance committing key");
+            println!("=> -> read<T, AE> -> instance committing key exists");
+            println!("=> -> read<T, AE> -> instances: {:?}", instances);
             let loader = transcript.loader();
             let bases =
                 ick.bases.iter().map(|value| loader.ec_point_load_const(value)).collect_vec();
             let constant = ick.constant.as_ref().map(|value| loader.ec_point_load_const(value));
 
-            println!("=> -> read<T, AE> -> start reading committed instances");
-            println!("=> -> read<T, AE> -> instances: {:?}", instances);
+            println!("=> -> read<T, AE> -> start creating committed instances");
             let committed_instances = instances
                 .iter()
                 .map(|instances| {
@@ -96,20 +96,28 @@ where
                         .evaluate(None)
                 })
                 .collect_vec();
+            println!("=> -> read<T, AE> -> completed creating committed instances");
+            println!("=> -> read<T, AE> -> committed_instances: {:?}", committed_instances);
             for committed_instance in committed_instances.iter() {
                 transcript.common_ec_point(committed_instance)?;
             }
 
             Some(committed_instances)
         } else {
+            println!("=> -> read<T, AE> -> instance committing key doesn't exist");
+            println!("=> -> read<T, AE> -> instances: {:?}", instances);
+
             for instances in instances.iter() {
                 for instance in instances.iter() {
+                    println!("=> -> read<T, AE> -> common_scalar for instance: {:?}", instance);
                     transcript.common_scalar(instance)?;
                 }
             }
 
             None
         };
+
+        println!("=> -> read<T, AE> -> After committed instance stage");
 
         let (witnesses, challenges) = {
             let (witnesses, challenges) = protocol
@@ -129,16 +137,20 @@ where
             )
         };
 
+        println!("=> -> read<T, AE> -> After witnesses, challenge stage");
+
         let quotients = transcript.read_n_ec_points(protocol.quotient.num_chunk())?;
 
         let z = transcript.squeeze_challenge();
         let evaluations = transcript.read_n_scalars(protocol.evaluations.len())?;
 
+        println!("=> -> read<T, AE> -> Start <AS as PolynomialCommitmentScheme<C, L>>::read_proof");
         let pcs = <AS as PolynomialCommitmentScheme<C, L>>::read_proof(
             svk,
             &Self::empty_queries(protocol),
             transcript,
         )?;
+        println!("=> -> read<T, AE> -> Complete <AS as PolynomialCommitmentScheme<C, L>>::read_proof");
 
         let old_accumulators = protocol
             .accumulator_indices
@@ -149,6 +161,8 @@ where
                 )
             })
             .collect::<Result<Vec<_>, _>>()?;
+
+        println!("=> -> read<T, AE> -> Complete old_accumulators: {:?}", old_accumulators);
 
         Ok(Self {
             committed_instances,
