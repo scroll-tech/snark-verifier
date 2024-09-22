@@ -273,6 +273,7 @@ where
             .read_exact(data.as_mut())
             .map_err(|err| Error::Transcript(err.kind(), err.to_string()))?;
         let scalar = C::Scalar::from_repr_vartime(data).ok_or_else(|| {
+            println!("Error in PoseidonTranscript");
             Error::Transcript(io::ErrorKind::Other, "Invalid scalar encoding in proof".to_string())
         })?;
         self.loaded_stream.push(TranscriptObject::Scalar(scalar));

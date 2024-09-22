@@ -215,6 +215,7 @@ where
             .map_err(|err| Error::Transcript(err.kind(), err.to_string()))?;
         data.reverse();
         let scalar = C::Scalar::from_repr_vartime(data).ok_or_else(|| {
+            println!("Error in EvmTranscript");
             Error::Transcript(io::ErrorKind::Other, "Invalid scalar encoding in proof".to_string())
         })?;
         self.common_scalar(&scalar)?;
