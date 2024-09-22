@@ -62,21 +62,28 @@ where
         T: TranscriptRead<C, L>,
         AE: AccumulatorEncoding<C, L, Accumulator = AS::Accumulator>,
     {
+        println!("=> Inside PlonkProof -> read<T, AE>");
         if let Some(transcript_initial_state) = &protocol.transcript_initial_state {
             transcript.common_scalar(transcript_initial_state)?;
         }
+        println!("=> -> read<T, AE> -> After common_scalar");
 
         if protocol.num_instance != instances.iter().map(|instances| instances.len()).collect_vec()
         {
             return Err(Error::InvalidInstances);
         }
 
+        println!("=> -> read<T, AE> -> After instances.len()");
+
         let committed_instances = if let Some(ick) = &protocol.instance_committing_key {
+            println!("=> -> read<T, AE> -> instance committing key");
             let loader = transcript.loader();
             let bases =
                 ick.bases.iter().map(|value| loader.ec_point_load_const(value)).collect_vec();
             let constant = ick.constant.as_ref().map(|value| loader.ec_point_load_const(value));
 
+            println!("=> -> read<T, AE> -> start reading committed instances");
+            println!("=> -> read<T, AE> -> instances: {:?}", instances);
             let committed_instances = instances
                 .iter()
                 .map(|instances| {

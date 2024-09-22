@@ -385,15 +385,19 @@ pub fn aggregate_snarks<AS>(
 where
     AS: for<'a> Halo2KzgAccumulationScheme<'a>,
 {
+    println!("=> [Start] halo2 -> aggregation -> aggregate_snarks");
     let snarks = snarks.into_iter().collect_vec();
 
     let mut transcript_read =
         PoseidonTranscript::<NativeLoader, &[u8]>::from_spec(&[], POSEIDON_SPEC.clone());
+    
+    println!("=> Complete transcript read");
     // TODO: the snarks can probably store these accumulators
     let accumulators = snarks
         .iter()
         .flat_map(|snark| {
             transcript_read.new_stream(snark.proof());
+            println!("=> transcript_read.new_stream succeeds");
             let proof = PlonkSuccinctVerifier::<AS>::read_proof(
                 &svk,
                 &snark.protocol,
