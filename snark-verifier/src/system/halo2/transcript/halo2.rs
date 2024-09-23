@@ -289,7 +289,7 @@ where
         println!("reading Poseidon Transcript scalar - NativeLoader");
         let mut data = <C::Scalar as PrimeField>::Repr::default();
         println!("data default");
-        println!("stream bytes: {:?}", self.stream.clone().bytes().collect());
+        println!("stream bytes: {:?}", self.stream.bytes().collect());
         self.stream
             .read_exact(data.as_mut())
             .map_err(|err| Error::Transcript(err.kind(), err.to_string()))?;
