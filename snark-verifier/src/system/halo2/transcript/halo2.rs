@@ -159,27 +159,43 @@ where
     R: Read,
     EccChip: NativeEncoding<C>,
 {
+    // compression_debug
     fn read_scalar(&mut self) -> Result<Scalar<C, EccChip>, Error> {
+        println!("reading Poseidon Transcript scalar");
         let scalar = {
             let mut data = <C::Scalar as PrimeField>::Repr::default();
+            println!("data default");
             self.stream.read_exact(data.as_mut()).unwrap();
+            println!("stream read_exact");
             C::Scalar::from_repr(data).unwrap()
         };
+        println!("scalar: {:?}", scalar);
         let scalar = self.loader.assign_scalar(scalar);
+        println!("loader.assign_scalar done");
         self.loaded_stream.push(TranscriptObject::Scalar(scalar.clone()));
+        println!("loaded_stream.push(scalar)");
         self.common_scalar(&scalar)?;
+        println!("self.common_scalar");
         Ok(scalar)
     }
 
+    // compression_debug
     fn read_ec_point(&mut self) -> Result<EcPoint<C, EccChip>, Error> {
+        println!("reading Poseidon Transcript ec point");
         let ec_point = {
             let mut compressed = C::Repr::default();
+            println!("compressed");
             self.stream.read_exact(compressed.as_mut()).unwrap();
+            println!("read exact");
             C::from_bytes(&compressed).unwrap()
         };
+        println!("ec_point: {:?}", ec_point);
         let ec_point = self.loader.assign_ec_point(ec_point);
+        println!("loader.assign_ec_point done");
         self.loaded_stream.push(TranscriptObject::EcPoint(ec_point.clone()));
+        println!("loaded_stream.push(ecpoint)");
         self.common_ec_point(&ec_point)?;
+        println!("self.common_ec_point");
         Ok(ec_point)
     }
 }
