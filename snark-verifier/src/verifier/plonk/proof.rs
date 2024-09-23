@@ -63,6 +63,7 @@ where
         AE: AccumulatorEncoding<C, L, Accumulator = AS::Accumulator>,
     {
         println!("=> Inside PlonkProof -> read<T, AE>");
+        println!("=> PlonkProof: {:?}", self);
         if let Some(transcript_initial_state) = &protocol.transcript_initial_state {
             transcript.common_scalar(transcript_initial_state)?;
         }
