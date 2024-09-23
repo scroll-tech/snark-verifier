@@ -151,6 +151,7 @@ where
     }
 }
 
+// compression_debug
 impl<C, R, EccChip, const T: usize, const RATE: usize, const R_F: usize, const R_P: usize>
     TranscriptRead<C, Rc<Halo2Loader<C, EccChip>>>
     for PoseidonTranscript<C, Rc<Halo2Loader<C, EccChip>>, R, T, RATE, R_F, R_P>
@@ -277,6 +278,7 @@ impl<C: CurveAffine, S, const T: usize, const RATE: usize, const R_F: usize, con
     }
 }
 
+// compression_debug
 impl<C, R, const T: usize, const RATE: usize, const R_F: usize, const R_P: usize>
     TranscriptRead<C, NativeLoader> for PoseidonTranscript<C, NativeLoader, R, T, RATE, R_F, R_P>
 where
@@ -287,6 +289,7 @@ where
         println!("reading Poseidon Transcript scalar - NativeLoader");
         let mut data = <C::Scalar as PrimeField>::Repr::default();
         println!("data default");
+        println!("stream bytes: {:?}", self.stream.clone().bytes().collect());
         self.stream
             .read_exact(data.as_mut())
             .map_err(|err| Error::Transcript(err.kind(), err.to_string()))?;
