@@ -62,32 +62,27 @@ where
         T: TranscriptRead<C, L>,
         AE: AccumulatorEncoding<C, L, Accumulator = AS::Accumulator>,
     {
-        println!("=> Inside PlonkProof -> read<T, AE>");
+        println!("=> Start PlonkProof -> read<T, AE>");
         println!("=> svk: {:?}", svk);
         println!("=> protocol: {:?}", protocol);
         println!("=> instances: {:?}", instances);
-        
+
         if let Some(transcript_initial_state) = &protocol.transcript_initial_state {
             transcript.common_scalar(transcript_initial_state)?;
         }
-        println!("=> -> read<T, AE> -> After common_scalar");
 
         if protocol.num_instance != instances.iter().map(|instances| instances.len()).collect_vec()
         {
             return Err(Error::InvalidInstances);
         }
 
-        println!("=> -> read<T, AE> -> After instances.len()");
-
         let committed_instances = if let Some(ick) = &protocol.instance_committing_key {
             println!("=> -> read<T, AE> -> instance committing key exists");
-            println!("=> -> read<T, AE> -> instances: {:?}", instances);
             let loader = transcript.loader();
             let bases =
                 ick.bases.iter().map(|value| loader.ec_point_load_const(value)).collect_vec();
             let constant = ick.constant.as_ref().map(|value| loader.ec_point_load_const(value));
 
-            println!("=> -> read<T, AE> -> start creating committed instances");
             let committed_instances = instances
                 .iter()
                 .map(|instances| {
@@ -109,11 +104,10 @@ where
             Some(committed_instances)
         } else {
             println!("=> -> read<T, AE> -> instance committing key doesn't exist");
-            println!("=> -> read<T, AE> -> instances: {:?}", instances);
 
             for instances in instances.iter() {
                 for instance in instances.iter() {
-                    println!("=> -> read<T, AE> -> common_scalar for instance: {:?}", instance);
+                    println!("=> -> read<T, AE> -> read instance: {:?}", instance);
                     transcript.common_scalar(instance)?;
                 }
             }
@@ -142,7 +136,6 @@ where
         };
 
         println!("=> -> read<T, AE> -> After witnesses, challenge stage");
-        // println!("transcript is: {:?}", transcript);
 
         let quotients = transcript.read_n_ec_points(protocol.quotient.num_chunk())?;
         println!("=> -> read<T, AE> -> quotients: {:?}", quotients);
