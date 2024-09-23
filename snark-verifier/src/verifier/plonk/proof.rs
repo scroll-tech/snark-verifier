@@ -138,6 +138,7 @@ where
         };
 
         println!("=> -> read<T, AE> -> After witnesses, challenge stage");
+        println!("transcript is: {:?}", transcript);
 
         let quotients = transcript.read_n_ec_points(protocol.quotient.num_chunk())?;
         println!("=> -> read<T, AE> -> quotients: {:?}", quotients);
