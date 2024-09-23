@@ -161,7 +161,7 @@ where
 {
     // compression_debug
     fn read_scalar(&mut self) -> Result<Scalar<C, EccChip>, Error> {
-        println!("reading Poseidon Transcript scalar");
+        println!("reading Poseidon Transcript scalar - Rc<Halo2Loader<C, EccChip>>");
         let scalar = {
             let mut data = <C::Scalar as PrimeField>::Repr::default();
             println!("data default");
@@ -181,7 +181,7 @@ where
 
     // compression_debug
     fn read_ec_point(&mut self) -> Result<EcPoint<C, EccChip>, Error> {
-        println!("reading Poseidon Transcript ec point");
+        println!("reading Poseidon Transcript ec point - Rc<Halo2Loader<C, EccChip>>");
         let ec_point = {
             let mut compressed = C::Repr::default();
             println!("compressed");
@@ -284,20 +284,27 @@ where
     R: Read,
 {
     fn read_scalar(&mut self) -> Result<C::Scalar, Error> {
+        println!("reading Poseidon Transcript scalar - NativeLoader");
         let mut data = <C::Scalar as PrimeField>::Repr::default();
+        println!("data default");
         self.stream
             .read_exact(data.as_mut())
             .map_err(|err| Error::Transcript(err.kind(), err.to_string()))?;
+        println!("stream read_exact");
         let scalar = C::Scalar::from_repr_vartime(data).ok_or_else(|| {
             println!("Error in PoseidonTranscript");
             Error::Transcript(io::ErrorKind::Other, "Invalid scalar encoding in proof".to_string())
         })?;
+        println!("scalar: {:?}", scalar);
         self.loaded_stream.push(TranscriptObject::Scalar(scalar));
+        println!("loaded_stream.push(scalar)");
         self.common_scalar(&scalar)?;
+        println!("self.common_scalar");
         Ok(scalar)
     }
 
     fn read_ec_point(&mut self) -> Result<C, Error> {
+        println!("reading Poseidon Transcript ec point - NativeLoader");
         let mut data = C::Repr::default();
         self.stream
             .read_exact(data.as_mut())
@@ -308,11 +315,16 @@ where
                 "Invalid elliptic curve point encoding in proof".to_string(),
             )
         })?;
+        println!("ec_point: {:?}", ec_point);
         self.loaded_stream.push(TranscriptObject::EcPoint(ec_point));
+        println!("loaded_stream.push(ecpoint)");
         self.common_ec_point(&ec_point)?;
+        println!("self.common_ec_point");
         Ok(ec_point)
     }
 }
+
+
 
 impl<C, W, const T: usize, const RATE: usize, const R_F: usize, const R_P: usize>
     PoseidonTranscript<C, NativeLoader, W, T, RATE, R_F, R_P>

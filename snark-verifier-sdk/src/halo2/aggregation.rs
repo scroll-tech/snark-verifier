@@ -503,6 +503,15 @@ impl AggregationCircuit {
     where
         AS: for<'a> Halo2KzgAccumulationScheme<'a>,
     {
+        println!("");
+        println!("");
+        println!("***");
+        println!("=> AggregationCircuit::new");
+        println!("=> stage: {:?}", stage);
+        println!("=> config_params: {:?}", config_params);
+        println!("=> params: {:?}", params);
+        println!("=> universality: {:?}", universality);
+
         let svk: Svk = params.get_g()[0].into();
         let mut builder = BaseCircuitBuilder::from_stage(stage).use_params(config_params.into());
         let range = builder.range_chip();
