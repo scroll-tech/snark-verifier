@@ -509,7 +509,7 @@ impl AggregationCircuit {
         println!("=> AggregationCircuit::new");
         println!("=> stage: {:?}", stage);
         println!("=> config_params: {:?}", config_params);
-        println!("=> params: {:?}", params);
+        // println!("=> params: {:?}", params);
         println!("=> universality: {:?}", universality);
 
         let svk: Svk = params.get_g()[0].into();
