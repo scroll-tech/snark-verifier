@@ -140,9 +140,13 @@ where
         println!("=> -> read<T, AE> -> After witnesses, challenge stage");
 
         let quotients = transcript.read_n_ec_points(protocol.quotient.num_chunk())?;
+        println!("=> -> read<T, AE> -> quotients: {:?}", quotients);
 
         let z = transcript.squeeze_challenge();
+        println!("=> -> read<T, AE> -> z: {:?}", z);
+
         let evaluations = transcript.read_n_scalars(protocol.evaluations.len())?;
+        println!("=> -> read<T, AE> -> evaluations: {:?}", evaluations);
 
         println!("=> -> read<T, AE> -> Start <AS as PolynomialCommitmentScheme<C, L>>::read_proof");
         let pcs = <AS as PolynomialCommitmentScheme<C, L>>::read_proof(
