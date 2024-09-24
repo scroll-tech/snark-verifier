@@ -381,6 +381,7 @@ pub fn aggregate_snarks<AS>(
     svk: Svk, // gotten by params.get_g()[0].into()
     snarks: impl IntoIterator<Item = Snark>,
     universality: VerifierUniversality,
+    rng: &mut (impl rand::Rng + Send),
 ) -> SnarkAggregationOutput
 where
     AS: for<'a> Halo2KzgAccumulationScheme<'a>,
@@ -409,7 +410,6 @@ where
     let (_accumulator, as_proof) = {
         let mut transcript_write =
             PoseidonTranscript::<NativeLoader, Vec<u8>>::from_spec(vec![], POSEIDON_SPEC.clone());
-        let rng = StdRng::from_entropy();
         let accumulator =
             AS::create_proof(&Default::default(), &accumulators, &mut transcript_write, rng)
                 .unwrap();
@@ -495,6 +495,7 @@ impl AggregationCircuit {
         params: &ParamsKZG<Bn256>,
         snarks: impl IntoIterator<Item = Snark>,
         universality: VerifierUniversality,
+        rng: &mut (impl rand::Rng + Send),
     ) -> Self
     where
         AS: for<'a> Halo2KzgAccumulationScheme<'a>,
@@ -503,7 +504,7 @@ impl AggregationCircuit {
         let mut builder = BaseCircuitBuilder::from_stage(stage).use_params(config_params.into());
         let range = builder.range_chip();
         let SnarkAggregationOutput { previous_instances, accumulator, preprocessed, .. } =
-            aggregate_snarks::<AS>(builder.pool(0), &range, svk, snarks, universality);
+            aggregate_snarks::<AS>(builder.pool(0), &range, svk, snarks, universality, rng);
         assert_eq!(
             builder.assigned_instances.len(),
             1,
