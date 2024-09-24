@@ -71,6 +71,8 @@ where
             return Err(Error::InvalidInstances);
         }
 
+        log::debug!("plonk_proof::read: 1 OK");
+
         let committed_instances = if let Some(ick) = &protocol.instance_committing_key {
             let loader = transcript.loader();
             let bases =
@@ -103,13 +105,16 @@ where
 
             None
         };
+        log::debug!("plonk_proof::read: 2 OK");
 
         let (witnesses, challenges) = {
             let (witnesses, challenges) = protocol
                 .num_witness
                 .iter()
                 .zip(protocol.num_challenge.iter())
-                .map(|(&n, &m)| {
+                .enumerate()
+                .map(|(i, (&n, &m))| {
+                    log::debug!("plonk_proof::read: read from transcript {:?} OK", i);
                     Ok((transcript.read_n_ec_points(n)?, transcript.squeeze_n_challenges(m)))
                 })
                 .collect::<Result<Vec<_>, Error>>()?
@@ -121,17 +126,22 @@ where
                 challenges.into_iter().flatten().collect_vec(),
             )
         };
+        log::debug!("plonk_proof::read: 3 OK");
 
         let quotients = transcript.read_n_ec_points(protocol.quotient.num_chunk())?;
+        log::debug!("plonk_proof::read: 4 OK");
 
         let z = transcript.squeeze_challenge();
+        log::debug!("plonk_proof::read: 5 OK");
         let evaluations = transcript.read_n_scalars(protocol.evaluations.len())?;
+        log::debug!("plonk_proof::read: 6 OK");
 
         let pcs = <AS as PolynomialCommitmentScheme<C, L>>::read_proof(
             svk,
             &Self::empty_queries(protocol),
             transcript,
         )?;
+        log::debug!("plonk_proof::read: 7 OK");
 
         let old_accumulators = protocol
             .accumulator_indices
@@ -142,6 +152,7 @@ where
                 )
             })
             .collect::<Result<Vec<_>, _>>()?;
+        log::debug!("plonk_proof::read: 8 OK");
 
         Ok(Self {
             committed_instances,

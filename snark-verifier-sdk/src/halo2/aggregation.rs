@@ -395,6 +395,7 @@ where
         .iter()
         .flat_map(|snark| {
             transcript_read.new_stream(snark.proof());
+            log::debug!("aggregate_snarks: start to read proof");
             let proof = PlonkSuccinctVerifier::<AS>::read_proof(
                 &svk,
                 &snark.protocol,
@@ -402,6 +403,7 @@ where
                 &mut transcript_read,
             )
             .unwrap();
+            log::debug!("aggregate_snarks: end to read proof");
             PlonkSuccinctVerifier::<AS>::verify(&svk, &snark.protocol, &snark.instances, &proof)
                 .unwrap()
         })

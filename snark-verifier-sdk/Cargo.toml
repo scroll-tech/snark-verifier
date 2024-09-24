@@ -32,6 +32,8 @@ getset = "0.1.2"
 # loader_evm
 ethereum-types = { version = "=0.14.1", default-features = false, features = ["std"], optional = true }
 
+log = "0.4"
+
 # zkevm benchmarks
 # zkevm-circuits = { git = "https://github.com/privacy-scaling-explorations/zkevm-circuits.git", rev = "f834e61", features = [
 #     "test",

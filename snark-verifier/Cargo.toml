@@ -38,6 +38,8 @@ ruint = { version = "=1.12.3", optional = true }
 # revm only used for testing smart contract execution
 revm = { version = "=3.5.0", optional = true }
 
+log = "0.4"
+
 [dev-dependencies]
 ark-std = { version = "0.3.0", features = ["print-trace"] }
 paste = "1.0.7"
