@@ -10,6 +10,7 @@ use rand::rngs::OsRng;
 use snark_verifier_sdk::evm::evm_verify;
 use snark_verifier_sdk::evm::{gen_evm_proof_shplonk, gen_evm_verifier_shplonk};
 use snark_verifier_sdk::halo2::aggregation::{AggregationConfigParams, VerifierUniversality};
+use snark_verifier_sdk::halo2::utils::KeygenAggregationCircuitIntent;
 use snark_verifier_sdk::{
     gen_pk,
     halo2::{aggregation::AggregationCircuit, gen_snark_shplonk},
@@ -176,6 +177,7 @@ fn gen_application_snark(params: &ParamsKZG<Bn256>) -> Snark {
 }
 
 fn main() {
+    // Base layer snark
     let params_app = gen_srs(8);
 
     let k = 21u32;
@@ -183,6 +185,7 @@ fn main() {
     let params = gen_srs(k);
     let snarks = [(); 1].map(|_| gen_application_snark(&params_app));
 
+    // Layer 1 Compression
     let mut agg_circuit = AggregationCircuit::new::<SHPLONK>(
         CircuitBuilderStage::Keygen,
         AggregationConfigParams { degree: k, lookup_bits, ..Default::default() },
@@ -206,14 +209,49 @@ fn main() {
     .use_break_points(break_points);
     let num_instances = agg_circuit.num_instance();
     let instances = agg_circuit.instances();
-    let _proof = gen_evm_proof_shplonk(&params, &pk, agg_circuit, instances.clone());
-
-    let _deployment_code = gen_evm_verifier_shplonk::<AggregationCircuit>(
-        &params,
+    let proof = gen_evm_proof_shplonk(&params, &pk, agg_circuit, instances.clone());
+    let protocol = compile(
+        params,
         pk.get_vk(),
-        num_instances,
-        Some(Path::new("examples/StandardPlonkVerifier.sol")),
+        Config::kzg()
+            .with_num_instance(agg_circuit.num_instance())
+            .with_accumulator_indices(AggregationCircuit::accumulator_indices()),
     );
-    #[cfg(feature = "revm")]
-    evm_verify(_deployment_code, instances, _proof);
+    let layer1_snark = Snark { protocol, instances, proof };
+
+
+    // Layer 2 Compression
+    let mut agg_circuit = AggregationCircuit::new::<SHPLONK>(
+        CircuitBuilderStage::Keygen,
+        AggregationConfigParams { degree: k, lookup_bits, ..Default::default() },
+        &params,
+        [layer1_snark],
+        VerifierUniversality::Full,
+    );
+    let agg_config = agg_circuit.calculate_params(Some(10));
+
+    let pk = gen_pk(&params, &agg_circuit, None);
+    let break_points = agg_circuit.break_points();
+    drop(agg_circuit);
+
+    let agg_circuit = AggregationCircuit::new::<SHPLONK>(
+        CircuitBuilderStage::Prover,
+        agg_config,
+        &params,
+        [layer1_snark],
+        VerifierUniversality::Full,
+    )
+    .use_break_points(break_points);
+    let num_instances = agg_circuit.num_instance();
+    let instances = agg_circuit.instances();
+    let _proof = gen_evm_proof_shplonk(&params, &pk, agg_circuit, instances.clone());
+    
+    // let _deployment_code = gen_evm_verifier_shplonk::<AggregationCircuit>(
+    //     &params,
+    //     pk.get_vk(),
+    //     num_instances,
+    //     Some(Path::new("examples/StandardPlonkVerifier.sol")),
+    // );
+    // #[cfg(feature = "revm")]
+    // evm_verify(_deployment_code, instances, _proof);
 }
