@@ -219,7 +219,6 @@ fn main() {
     );
     let layer1_snark = Snark { protocol, instances, proof };
 
-
     // Layer 2 Compression
     let mut agg_circuit = AggregationCircuit::new::<SHPLONK>(
         CircuitBuilderStage::Keygen,
