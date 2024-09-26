@@ -19,7 +19,7 @@ ark-std = { version = "0.3.0", features = ["print-trace"], optional = true }
 
 ff = "0.13"
 # halo2-base = { git = "https://github.com/axiom-crypto/halo2-lib.git", tag = "v0.2.2", default-features = false }
-halo2-base = { git = "https://github.com/scroll-tech/halo2-lib.git", branch = "develop" }
+halo2-base = { git = "https://github.com/scroll-tech/halo2-lib.git", branch = "feat/sp1-halo2" }
 snark-verifier = { path = "../snark-verifier", default-features = false }
 
 # loader_evm
