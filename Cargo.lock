@@ -687,7 +687,7 @@ source = "git+https://github.com/scroll-tech/halo2-lib?branch=feat/sp1-halo2#b7c
 dependencies = [
  "ff 0.13.0",
  "halo2_proofs 0.2.0",
- "halo2_proofs 1.1.0 (git+https://github.com/scroll-tech/halo2.git?branch=feat/sp1-halo2)",
+ "halo2_proofs 1.1.0",
  "itertools 0.10.5",
  "num-bigint",
  "num-integer",
@@ -734,31 +734,6 @@ dependencies = [
 name = "halo2_proofs"
 version = "1.1.0"
 source = "git+https://github.com/scroll-tech/halo2.git?branch=feat/sp1-halo2#7e0ae0c065ba4b82d9d2c4b5533856c250c53381"
-dependencies = [
- "ark-std",
- "blake2b_simd",
- "cfg-if 0.1.10",
- "crossbeam",
- "ff 0.13.0",
- "group 0.13.0",
- "halo2curves 0.1.0",
- "log",
- "maybe-rayon",
- "num-bigint",
- "num-integer",
- "poseidon 0.2.0 (git+https://github.com/scroll-tech/poseidon.git?branch=main)",
- "rand_chacha",
- "rand_core",
- "rayon",
- "sha3 0.9.1",
- "subtle",
- "tracing",
-]
-
-[[package]]
-name = "halo2_proofs"
-version = "1.1.0"
-source = "git+https://github.com/scroll-tech/halo2.git?branch=v1.1#e5ddf67e5ae16be38d6368ed355c7c41906272ab"
 dependencies = [
  "ark-std",
  "blake2b_simd",
@@ -1849,7 +1824,7 @@ dependencies = [
  "ethereum-types",
  "halo2-base",
  "halo2-ecc",
- "halo2_proofs 1.1.0 (git+https://github.com/scroll-tech/halo2.git?branch=v1.1)",
+ "halo2_proofs 1.1.0",
  "hex",
  "itertools 0.12.0",
  "num-bigint",
@@ -1882,7 +1857,7 @@ dependencies = [
  "ethereum-types",
  "ff 0.13.0",
  "halo2-base",
- "halo2_proofs 1.1.0 (git+https://github.com/scroll-tech/halo2.git?branch=feat/sp1-halo2)",
+ "halo2_proofs 1.1.0",
  "hex",
  "itertools 0.12.0",
  "log",
