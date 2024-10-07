@@ -1160,6 +1160,25 @@ dependencies = [
  "halo2-axiom",
  "halo2_proofs",
  "itertools 0.11.0",
+ "log",
+ "num-bigint",
+ "num-integer",
+ "num-traits",
+ "poseidon-primitives",
+ "rand_chacha",
+ "rayon",
+ "rustc-hash",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "halo2-base"
+version = "0.4.1"
+source = "git+https://github.com/scroll-tech/halo2-lib.git?branch=debug/compression_flex_gate#508815c24d9963b6fdef6f1cfe6c4597c4c779ef"
+dependencies = [
+ "getset",
+ "itertools 0.11.0",
  "jemallocator",
  "log",
  "num-bigint",
@@ -1178,7 +1197,7 @@ name = "halo2-ecc"
 version = "0.4.1"
 source = "git+https://github.com/scroll-tech/halo2-lib.git?branch=community-edition#508815c24d9963b6fdef6f1cfe6c4597c4c779ef"
 dependencies = [
- "halo2-base",
+ "halo2-base 0.4.1 (git+https://github.com/scroll-tech/halo2-lib.git?branch=community-edition)",
  "itertools 0.11.0",
  "num-bigint",
  "num-integer",
@@ -2604,7 +2623,7 @@ version = "0.1.8"
 dependencies = [
  "ark-std 0.3.0",
  "crossterm 0.25.0",
- "halo2-base",
+ "halo2-base 0.4.1 (git+https://github.com/scroll-tech/halo2-lib.git?branch=community-edition)",
  "halo2-ecc",
  "hex",
  "itertools 0.11.0",
@@ -2636,7 +2655,7 @@ dependencies = [
  "crossterm 0.25.0",
  "ethereum-types",
  "getset",
- "halo2-base",
+ "halo2-base 0.4.1 (git+https://github.com/scroll-tech/halo2-lib.git?branch=debug/compression_flex_gate)",
  "hex",
  "itertools 0.11.0",
  "lazy_static",
