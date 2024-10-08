@@ -727,8 +727,11 @@ impl Executor {
 
     pub fn deploy(&mut self, from: Address, code: Bytes, value: U256) -> DeployResult {
         let env = self.build_test_env(from, TransactTo::Create(CreateScheme::Create), code, value);
+        log::debug!("env OK");
         let result = self.call_raw_with_env(env);
+        log::debug!("result = {:?}", result);
         self.commit(&result);
+        log::debug!("commit OK");
 
         let RawCallResult { exit_reason, out, gas_used, gas_refunded, logs, debug, env, .. } =
             result;
@@ -737,6 +740,7 @@ impl Executor {
             (return_ok!(), TransactOut::Create(_, Some(address))) => Some(address),
             _ => None,
         };
+        log::debug!("address = {:?}", address);
 
         DeployResult {
             exit_reason,

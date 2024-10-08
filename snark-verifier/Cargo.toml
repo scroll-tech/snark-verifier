@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+log = "0.4"
 itertools = "0.12"
 num-bigint = "0.4.3"
 num-integer = "0.1.45"

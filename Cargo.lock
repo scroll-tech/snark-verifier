@@ -1802,6 +1802,7 @@ dependencies = [
  "halo2-ecc",
  "hex",
  "itertools 0.12.0",
+ "log",
  "num-bigint",
  "num-integer",
  "num-traits",
