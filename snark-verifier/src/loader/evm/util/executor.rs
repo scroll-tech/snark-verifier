@@ -726,6 +726,7 @@ impl Executor {
     }
 
     pub fn deploy(&mut self, from: Address, code: Bytes, value: U256) -> DeployResult {
+        log::debug!("deploying code = {:?} bytes, value = {:?}, from = {:?}", code.len(), value, from);
         let env = self.build_test_env(from, TransactTo::Create(CreateScheme::Create), code, value);
         log::debug!("env OK");
         let result = self.call_raw_with_env(env);
@@ -767,8 +768,10 @@ impl Executor {
 
     fn call_raw_with_env(&self, mut env: Env) -> RawCallResult {
         let mut inspector = self.inspector();
+        log::debug!("inspector OK");
         let result =
             evm_inner::<_, true>(&mut env, &mut self.db.clone(), &mut inspector).transact();
+        log::debug!("evm_inner: result={:?}", result);
         let (exec_result, state_changeset) = result;
         let ExecutionResult { exit_reason, gas_refunded, gas_used, out, .. } = exec_result;
 
@@ -777,6 +780,7 @@ impl Executor {
             _ => Bytes::default(),
         };
         let InspectorData { logs, debug } = inspector.collect_inspector_states();
+        log::debug!("inspector collect OK");
 
         RawCallResult {
             exit_reason,
