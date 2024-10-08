@@ -189,17 +189,22 @@ pub fn evm_verify(deployment_code: Vec<u8>, instances: Vec<Vec<Fr>>, proof: Vec<
 
 pub fn verify_evm_proof(deployment_code: Vec<u8>, instances: Vec<Vec<Fr>>, proof: Vec<u8>) -> bool {
     let calldata = encode_calldata(&instances, &proof);
+    log::debug!("calldata OK");
     verify_evm_calldata(deployment_code, calldata)
 }
 
 pub fn verify_evm_calldata(deployment_code: Vec<u8>, calldata: Vec<u8>) -> bool {
     let mut evm = ExecutorBuilder::default().with_gas_limit(u64::MAX.into()).build();
+    log::debug!("executor OK");
 
     let caller = Address::from_low_u64_be(0xfe);
+    log::debug!("caller OK");
     let deploy_result = evm.deploy(caller, deployment_code.into(), 0.into());
+    log::debug!("deployed OK");
 
     let verifier_address = match deploy_result.address {
         None => {
+            log::debug!("deploy failed: {:?}", deploy_result);
             panic!("deploy failed {deploy_result:?}");
         }
         Some(verifier_address) => verifier_address,
