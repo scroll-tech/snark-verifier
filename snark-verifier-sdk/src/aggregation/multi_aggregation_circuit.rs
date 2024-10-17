@@ -129,7 +129,7 @@ impl Circuit<Fr> for PublicAggregationCircuit {
 
                     let ecc_chip = config.ecc_chip();
                     let loader = Halo2Loader::new(ecc_chip, ctx);
-                    let (prev_instances, acc) = aggregate::<Kzg<Bn256, Bdfg21>>(
+                    let (prev_instances, acc, _, _) = aggregate::<Kzg<Bn256, Bdfg21>>(
                         &self.aggregation.svk,
                         &loader,
                         &self.aggregation.snarks,

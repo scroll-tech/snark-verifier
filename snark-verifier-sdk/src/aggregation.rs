@@ -10,13 +10,16 @@ use ark_std::start_timer;
 use halo2_base::{
     halo2_proofs::{
         circuit::Value,
-        halo2curves::bn256::{Fr, G1Affine},
+        halo2curves::bn256::{Fq, Fr, G1Affine},
     },
     AssignedValue,
 };
 use itertools::Itertools;
 use snark_verifier::{
-    loader::halo2::EccInstructions,
+    loader::halo2::{
+        halo2_ecc::{ecc::EccChip, fields::fp::FpConfig},
+        EcPoint, EccInstructions, Scalar,
+    },
     pcs::{
         kzg::{KzgAccumulator, KzgAs},
         AccumulationScheme, MultiOpenScheme, PolynomialCommitmentScheme,
@@ -58,21 +61,24 @@ pub fn flatten_accumulator<'a>(
         .collect()
 }
 
-#[allow(clippy::type_complexity)]
+type AssignedInstances<'a> =
+    Vec<Vec<<BaseFieldEccChip as EccInstructions<'a, G1Affine>>::AssignedScalar>>;
+type KzgAcc<'a> = KzgAccumulator<G1Affine, Rc<Halo2Loader<'a>>>;
+type LoadedEcPoints<'a> = Vec<Vec<EcPoint<'a, G1Affine, EccChip<Fr, FpConfig<Fr, Fq>>>>>;
+type LoadedScalars<'a> = Vec<Option<Scalar<'a, G1Affine, EccChip<Fr, FpConfig<Fr, Fq>>>>>;
+
 /// Core function used in `synthesize` to aggregate multiple `snarks`.
 ///  
 /// Returns the assigned instances of previous snarks and the new final pair that needs to be verified in a pairing check.
 /// For each previous snark, we concatenate all instances into a single vector. We return a vector of vectors,
 /// one vector per snark, for convenience.
+#[allow(clippy::type_complexity)]
 pub fn aggregate<'a, PCS>(
     svk: &PCS::SuccinctVerifyingKey,
     loader: &Rc<Halo2Loader<'a>>,
     snarks: &[SnarkWitness],
     as_proof: Value<&'_ [u8]>,
-) -> (
-    Vec<Vec<<BaseFieldEccChip as EccInstructions<'a, G1Affine>>::AssignedScalar>>,
-    KzgAccumulator<G1Affine, Rc<Halo2Loader<'a>>>,
-)
+) -> (AssignedInstances<'a>, KzgAcc<'a>, LoadedEcPoints<'a>, LoadedScalars<'a>)
 where
     PCS: PolynomialCommitmentScheme<
             G1Affine,
@@ -89,18 +95,28 @@ where
             .collect_vec()
     };
 
-    // TODO pre-allocate capacity better
-    let mut previous_instances = Vec::with_capacity(snarks.len());
     let mut transcript = PoseidonTranscript::<Rc<Halo2Loader<'a>>, _>::from_spec(
         loader,
         Value::unknown(),
         POSEIDON_SPEC.clone(),
     );
 
+    let mut previous_instances = Vec::with_capacity(snarks.len());
+    let mut preprocessed_polys = Vec::with_capacity(snarks.len());
+    let mut transcript_init_states = Vec::with_capacity(snarks.len());
     let mut accumulators = snarks
         .iter()
         .flat_map(|snark| {
-            let protocol = snark.protocol.loaded(loader);
+            // The SNARK protocol's preprocessed polynomials and the initial state of the
+            // prover/verifier's transcripts are loaded as witnesses.
+            //
+            // This allows us to aggregate SNARKs that may have been generated using one or more
+            // circuits.
+            //
+            // Note: Its important to further constrain the assigned preprocessed polynomial commitments
+            // and the assigned transcript initial state to belong to a fixed expected set.
+            let protocol = snark.protocol.loaded_preprocessed_as_witness(loader);
+
             // TODO use 1d vector
             let instances = assign_instances(&snark.instances);
 
@@ -113,6 +129,8 @@ where
             previous_instances.push(
                 instances.into_iter().flatten().map(|scalar| scalar.into_assigned()).collect(),
             );
+            preprocessed_polys.push(protocol.preprocessed);
+            transcript_init_states.push(protocol.transcript_initial_state);
 
             accumulator
         })
@@ -127,5 +145,5 @@ where
         accumulators.pop().unwrap()
     };
 
-    (previous_instances, accumulator)
+    (previous_instances, accumulator, preprocessed_polys, transcript_init_states)
 }
