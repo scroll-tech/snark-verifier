@@ -181,7 +181,7 @@ impl Circuit<Fr> for AggregationCircuit {
 
                     let ecc_chip = config.ecc_chip();
                     let loader = Halo2Loader::new(ecc_chip, ctx);
-                    let (_, acc, _, _) =
+                    let (_, acc) =
                         aggregate::<KzgBDFG>(&self.svk, &loader, &self.snarks, self.as_proof());
 
                     instances.extend(

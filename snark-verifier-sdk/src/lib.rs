@@ -18,7 +18,7 @@ pub mod types;
 pub use aggregation::aggregation_circuit::AggregationCircuit;
 pub use aggregation::load_verify_circuit_degree;
 pub use aggregation::multi_aggregation_circuit::PublicAggregationCircuit;
-pub use aggregation::{aggregate, flatten_accumulator};
+pub use aggregation::{aggregate, aggregate_hybrid, flatten_accumulator};
 pub use circuit_ext::CircuitExt;
 pub use param::{BITS, LIMBS};
 pub use snark::gen_dummy_snark;
