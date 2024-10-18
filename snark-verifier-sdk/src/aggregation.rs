@@ -18,7 +18,7 @@ use itertools::Itertools;
 use snark_verifier::{
     loader::halo2::{
         halo2_ecc::{ecc::EccChip, fields::fp::FpConfig},
-        EcPoint, EccInstructions, Scalar,
+        EccInstructions,
     },
     pcs::{
         kzg::{KzgAccumulator, KzgAs},
@@ -44,8 +44,8 @@ pub fn load_verify_circuit_degree() -> u32 {
     params.degree
 }
 
-pub fn flatten_accumulator<'a>(
-    accumulator: KzgAccumulator<G1Affine, Rc<Halo2Loader<'a>>>,
+pub fn flatten_accumulator(
+    accumulator: KzgAccumulator<G1Affine, Rc<Halo2Loader>>,
 ) -> Vec<AssignedValue<Fr>> {
     let KzgAccumulator { lhs, rhs } = accumulator;
     let lhs = lhs.into_assigned();
@@ -55,17 +55,19 @@ pub fn flatten_accumulator<'a>(
         .truncation
         .limbs
         .into_iter()
-        .chain(lhs.y.truncation.limbs.into_iter())
-        .chain(rhs.x.truncation.limbs.into_iter())
-        .chain(rhs.y.truncation.limbs.into_iter())
+        .chain(lhs.y.truncation.limbs)
+        .chain(rhs.x.truncation.limbs)
+        .chain(rhs.y.truncation.limbs)
         .collect()
 }
 
 type AssignedInstances<'a> =
     Vec<Vec<<BaseFieldEccChip as EccInstructions<'a, G1Affine>>::AssignedScalar>>;
 type KzgAcc<'a> = KzgAccumulator<G1Affine, Rc<Halo2Loader<'a>>>;
-type LoadedEcPoints<'a> = Vec<Vec<EcPoint<'a, G1Affine, EccChip<Fr, FpConfig<Fr, Fq>>>>>;
-type LoadedScalars<'a> = Vec<Option<Scalar<'a, G1Affine, EccChip<Fr, FpConfig<Fr, Fq>>>>>;
+type AssignedEcPoints<'a> =
+    Vec<Vec<<EccChip<Fr, FpConfig<Fr, Fq>> as EccInstructions<'a, G1Affine>>::AssignedEcPoint>>;
+type AssignedScalars<'a> =
+    Vec<Option<<EccChip<Fr, FpConfig<Fr, Fq>> as EccInstructions<'a, G1Affine>>::AssignedScalar>>;
 
 /// Core function used in `synthesize` to aggregate multiple `snarks`.
 ///  
@@ -78,7 +80,7 @@ pub fn aggregate_hybrid<'a, PCS>(
     loader: &Rc<Halo2Loader<'a>>,
     snarks: &[SnarkWitness],
     as_proof: Value<&'_ [u8]>,
-) -> (AssignedInstances<'a>, KzgAcc<'a>, LoadedEcPoints<'a>, LoadedScalars<'a>)
+) -> (AssignedInstances<'a>, KzgAcc<'a>, AssignedEcPoints<'a>, AssignedScalars<'a>)
 where
     PCS: PolynomialCommitmentScheme<
             G1Affine,
@@ -129,8 +131,10 @@ where
             previous_instances.push(
                 instances.into_iter().flatten().map(|scalar| scalar.into_assigned()).collect(),
             );
-            preprocessed_polys.push(protocol.preprocessed);
-            transcript_init_states.push(protocol.transcript_initial_state);
+            preprocessed_polys
+                .push(protocol.preprocessed.into_iter().map(|ec| ec.into_assigned()).collect());
+            transcript_init_states
+                .push(protocol.transcript_initial_state.map(|s| s.into_assigned()));
 
             accumulator
         })
