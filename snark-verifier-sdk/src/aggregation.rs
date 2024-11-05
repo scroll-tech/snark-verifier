@@ -74,8 +74,13 @@ type AssignedScalars<'a> =
 /// Returns the assigned instances of previous snarks and the new final pair that needs to be verified in a pairing check.
 /// For each previous snark, we concatenate all instances into a single vector. We return a vector of vectors,
 /// one vector per snark, for convenience.
+///
+/// The difference between [`aggregate_as_witness`] and [`aggregate`] is that `aggregate` loads
+/// the [`Protocol`][snark_verifier::Protocol] of all SNARKs as constants. Whereas in
+/// [`aggregate_as_witness`] we load them as witness and return the preprocessed polynomials and
+/// the transcript initial states.
 #[allow(clippy::type_complexity)]
-pub fn aggregate_hybrid<'a, PCS>(
+pub fn aggregate_as_witness<'a, PCS>(
     svk: &PCS::SuccinctVerifyingKey,
     loader: &Rc<Halo2Loader<'a>>,
     snarks: &[SnarkWitness],
@@ -152,12 +157,12 @@ where
     (previous_instances, accumulator, preprocessed_polys, transcript_init_states)
 }
 
-#[allow(clippy::type_complexity)]
 /// Core function used in `synthesize` to aggregate multiple `snarks`.
 ///  
 /// Returns the assigned instances of previous snarks and the new final pair that needs to be verified in a pairing check.
 /// For each previous snark, we concatenate all instances into a single vector. We return a vector of vectors,
 /// one vector per snark, for convenience.
+#[allow(clippy::type_complexity)]
 pub fn aggregate<'a, PCS>(
     svk: &PCS::SuccinctVerifyingKey,
     loader: &Rc<Halo2Loader<'a>>,
